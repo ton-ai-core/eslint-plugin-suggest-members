@@ -1,0 +1,1 @@
+import { readFileSnc } from 'fs';
