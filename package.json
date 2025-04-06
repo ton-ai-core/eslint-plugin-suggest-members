@@ -5,19 +5,13 @@
   "main": "dist/index.js",
   "files": [
     "dist/",
-    "formatters/",
-    "eslint-full-format",
-    "register-formatter.js",
     "README.md"
   ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "postinstall": "node register-formatter.js",
-    "register-formatter": "node register-formatter.js",
     "lint": "eslint --ext .ts .",
-    "lint:default": "eslint --ext .ts . --format full-format-style",
-    "lint:full-format": "node ./eslint-full-format --ext .ts .",
+    "lint:default": "eslint --ext .ts .",
     "example:build": "tsc -p example/tsconfig.json",
     "example:lint": "eslint --ext .ts example/src/ -c example/eslint.config.js",
     "start": "npm run build && npm run example:lint",
@@ -66,9 +60,6 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.3.1",
     "typescript": "^5.8.3"
-  },
-  "bin": {
-    "eslint-full-format": "eslint-full-format"
   },
   "publishConfig": {
     "access": "public"
