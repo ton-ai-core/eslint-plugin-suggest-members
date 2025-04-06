@@ -1,5 +1,5 @@
 {
-  "name": "eslint-plugin-suggest-members",
+  "name": "@skulidropek/eslint-plugin-suggest-members",
   "version": "1.4.3",
   "description": "ESLint plugin suggesting potential corrections when accessing non-existent object members in TypeScript.",
   "main": "dist/index.js",
