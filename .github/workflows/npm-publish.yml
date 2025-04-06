@@ -37,6 +37,7 @@ jobs:
           minor-wording: 'feat,feature'
           major-wording: 'MAJOR,major'
           patch-wording: 'fix,bug,patch'
+          force-tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
