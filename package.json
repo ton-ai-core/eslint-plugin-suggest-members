@@ -37,10 +37,13 @@
     "eslint",
     "eslintplugin",
     "typescript",
-    "suggestmembers"
+    "suggestmembers",
+    "eslint-plugin",
+    "code-quality",
+    "typo-detection"
   ],
   "author": "TON Foundation",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/ton-ai-core/eslint-plugin-suggest-members/issues"
@@ -66,5 +69,8 @@
   },
   "bin": {
     "eslint-full-format": "eslint-full-format"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
