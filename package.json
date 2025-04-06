@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-suggest-members",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "ESLint plugin suggesting potential corrections when accessing non-existent object members in TypeScript.",
   "main": "dist/index.js",
   "files": [
