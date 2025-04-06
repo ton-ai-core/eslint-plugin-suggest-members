@@ -1,142 +1,103 @@
-# ESLint Plugin: Suggest Members с Расширенным Форматтером
+# eslint-plugin-suggest-members
 
-ESLint плагин для TypeScript, который обнаруживает потенциальные опечатки при обращении к несуществующим полям/методам объектов, импортах и идентификаторах, и предлагает возможные исправления. Плагин также включает специальный форматтер `full-format-style`, который улучшает читаемость ошибок.
+ESLint plugin for TypeScript that detects typos in member access, imports, and identifiers and suggests corrections.
 
-## Основные возможности
+## Features
 
-- Обнаружение попыток доступа к несуществующим свойствам объектов
-- Обнаружение ошибок в импортах и идентификаторах
-- Предложение возможных исправлений на основе алгоритмов сравнения строк
-- Расширенный форматтер вывода ошибок
+- Detects non-existent object properties/methods
+- Identifies import errors
+- Suggests corrections using string similarity algorithms
+- Displays full method signatures in suggestions
 
-### Алгоритмы обнаружения сходства
-
-В плагине используется несколько алгоритмов для нахождения наиболее похожих имен:
-
-- Расстояние Левенштейна: измеряет количество изменений (вставок, удалений, замен) для преобразования одной строки в другую
-- Расстояние Дамерау-Левенштейна: расширение расстояния Левенштейна, учитывающее транспозиции символов
-- Алгоритм Джаро-Винклера: измеряет сходство между строками, учитывая общие символы и транспозиции
-- Сходство аббревиатур: обнаруживает случаи, когда используются заглавные буквы из имени поля (например, `getUser` → `gU`)
-
-## Установка
+## Installation
 
 ```bash
 npm install eslint-plugin-suggest-members --save-dev
 ```
 
-## Конфигурация
+## Configuration
 
-### ESLint Flat Config (рекомендуется)
-
-```js
-import suggestMembers from 'eslint-plugin-suggest-members';
-
-export default [
-  // ... другие конфигурации
-  {
-    plugins: {
-      'suggest-members': suggestMembers,
-    },
-    rules: {
-      'suggest-members/suggest-members': 'warn', // Для обнаружения опечаток в свойствах объектов
-      'suggest-members/suggest-imports': 'warn'   // Для обнаружения ошибок в импортах и идентификаторах
-    },
-  },
-];
-```
-
-### Legacy config
-
-```json
-{
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["suggest-members"],
-  "rules": {
-    "suggest-members/suggest-members": "warn",
-    "suggest-members/suggest-imports": "warn"
-  }
-}
-```
-
-## Использование расширенного форматтера
-
-### Вариант 1: Использовать команду eslint-full-format из этого пакета
-
-```bash
-# При локальной установке
-npx eslint-plugin-suggest-members/eslint-full-format --ext .ts src/
-
-# При глобальной установке
-eslint-full-format --ext .ts src/
-```
-
-Вы также можете добавить скрипт в ваш package.json:
-
-```json
-{
-  "scripts": {
-    "lint": "eslint-plugin-suggest-members/eslint-full-format --ext .ts src/"
-  }
-}
-```
-
-### Вариант 2: Указать форматтер при запуске eslint
-
-```bash
-eslint --ext .ts src/ --format full-format-style
-```
-
-### Вариант 3: Настроить форматтер в конфигурации
+### ESLint Flat Config (ESLint v9+)
 
 ```js
 // eslint.config.js
+import suggestMembers from 'eslint-plugin-suggest-members';
+
 export default [
   {
-    // ... другие настройки
-    formatter: 'full-format-style'
+    files: ['**/*.ts', '**/*.tsx'],
+    plugins: {
+      'suggest-members': suggestMembers
+    },
+    languageOptions: {
+      parser: require('@typescript-eslint/parser'),
+      parserOptions: {
+        ecmaVersion: 2020,
+        sourceType: 'module',
+        project: './tsconfig.json',
+      },
+    },
+    rules: {
+      'suggest-members/suggest-members': 'error',
+      'suggest-members/suggest-imports': 'error'
+    }
   }
 ];
 ```
 
-## Правила
+### Legacy Config
+
+```js
+// .eslintrc.js
+module.exports = {
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'module',
+    project: './tsconfig.json',
+  },
+  plugins: ['suggest-members'],
+  rules: {
+    'suggest-members/suggest-members': 'error',
+    'suggest-members/suggest-imports': 'error'
+  }
+};
+```
+
+## Rules
 
 ### suggest-members
 
-Это правило обнаруживает попытки доступа к несуществующим свойствам или методам объектов и предлагает похожие имена на основе алгоритмов сходства строк.
+Detects access to non-existent properties/methods on objects and suggests similar names.
+
+Example:
+```typescript
+// Error: Property "fooo" does not exist on type "MyClass". Did you mean:
+// - foo: number
+// - processData(data: string): string
+// - getFullName(): string
+console.log(obj.fooo);
+```
 
 ### suggest-imports
 
-Это правило обнаруживает ошибки в импортах и использовании неопределенных идентификаторов, предлагая возможные исправления:
+Detects errors in imports and undefined identifiers.
 
-- Неправильные имена импортов (например, `import { Addr1ess } from "@ton/core"` → предложит `Address`)
-- Неопределенные идентификаторы (например, `Add1ress` → предложит `Address` или другие похожие переменные в текущей области видимости)
-
-## Тестирование и примеры
-
-В репозитории есть папка `/example` с примерами различных случаев использования. Вы можете запустить проверку этих примеров:
-
-```bash
-npm run test:typos         # Простые опечатки
-npm run test:similarity    # Проверка алгоритмов нахождения сходства
-npm run test:edge-cases    # Сложные случаи
-npm run test:jaro-winkler  # Примеры работы алгоритма Джаро-Винклера
-npm run test:corner-cases  # Крайние случаи
+Example:
+```typescript
+// Error: Import "Bufffer" is not defined in module "fs". Did you mean:
+// - Buffer
+// - readFile
+// - writeFile
+import { Bufffer } from 'fs';
 ```
 
-## Разработка
+## Requirements
 
-```bash
-npm install
-npm run build
-npm run example:lint       # Запуск линтера на примерах
-```
+- Node.js 14.x or higher
+- ESLint 8.x or higher
+- TypeScript 4.x or higher
 
-## Лицензия
+## License
 
-ISC
-
-## Автор
-
-TON Foundation
-
-Если у вас есть вопросы или предложения по улучшению, пожалуйста, создайте issue или pull request в репозитории проекта.
+MIT
