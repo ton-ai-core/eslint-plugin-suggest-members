@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "lint": "eslint --ext .ts .",
+    "lint": "eslint --ext .ts . --config eslint.config.ts",
     "lint:default": "eslint --ext .ts .",
     "example:build": "tsc -p example/tsconfig.json",
     "example:lint": "eslint --ext .ts example/src/ -c example/eslint.config.ts",

@@ -1,34 +1,40 @@
 /**
  * eslint.config.ts - Конфигурация ESLint v9
  */
-import path from 'path';
-import * as tsParser from '@typescript-eslint/parser';
+import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
+import * as path from 'path';
+// Import directly from src as ESM module during development
+import suggestMembersPlugin from "./src/index";
 
-// Импортируем плагин из исходников
-import * as suggestMembers from './src/index';
-
-const config = [
+export default [
+  js.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.tsx'],
-    ignores: ['node_modules/**', 'dist/**/*.d.ts'],
-    plugins: {
-      'suggest-members': suggestMembers
-    },
+    files: ["src/**/*.ts", "example/**/*.ts"],
+    ignores: ["dist/**/*"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        ecmaVersion: 2020,
-        sourceType: 'module',
-        project: [
-          './tsconfig.json',
-          './example/tsconfig.json'
-        ]
+        project: ["./tsconfig.json"],
+        tsconfigRootDir: path.resolve(),
+        sourceType: "module"
       },
+      globals: {
+        console: true,
+        __dirname: true,
+        process: true
+      }
+    },
+    plugins: {
+      "@typescript-eslint": tsPlugin,
+      "suggest-members": suggestMembersPlugin
     },
     rules: {
-      'suggest-members/check-member-existence': 'error'
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/explicit-function-return-type": "warn",
+      "suggest-members/suggest-members": "error",
+      "suggest-members/suggest-imports": "error"
     }
   }
-];
-
-export default config; 
+]; 
