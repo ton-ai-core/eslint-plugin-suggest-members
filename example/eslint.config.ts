@@ -1,17 +1,18 @@
-const path = require('path');
-const fs = require('fs');
+/**
+ * eslint.config.ts для примеров
+ */
+import path from 'path';
+import * as tsParser from '@typescript-eslint/parser';
+import * as suggestMembers from '../src/index';
 
-// Используем локальную версию плагина
-const suggestMembers = require('../dist/index.js').default;
-
-module.exports = [
+export default [
   {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       'suggest-members': suggestMembers
     },
     languageOptions: {
-      parser: require('@typescript-eslint/parser'),
+      parser: tsParser,
       parserOptions: {
         ecmaVersion: 2020,
         sourceType: 'module',

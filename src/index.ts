@@ -3,24 +3,40 @@ import path from 'path';
 import suggestMembersRule from './rules/suggest-members';
 import suggestImportsRule from './rules/suggest-imports';
 
-const plugin = {
-  rules: {
-    'suggest-members': suggestMembersRule,
-    'suggest-imports': suggestImportsRule,
-  },
-  meta: {
-    name: 'eslint-plugin-suggest-members',
-    version: '1.1.4',
-  },
-  configs: {
-    recommended: {
-      plugins: ['suggest-members'],
-      rules: {
-        'suggest-members/suggest-members': 'warn',
-        'suggest-members/suggest-imports': 'warn',
-      },
+/**
+ * Правила плагина
+ */
+export const rules = {
+  'suggest-members': suggestMembersRule,
+  'suggest-imports': suggestImportsRule,
+};
+
+/**
+ * Метаданные плагина
+ */
+export const meta = {
+  name: 'eslint-plugin-suggest-members',
+  version: '1.1.4',
+};
+
+/**
+ * Рекомендуемые конфигурации
+ */
+export const configs = {
+  recommended: {
+    plugins: ['suggest-members'],
+    rules: {
+      'suggest-members/suggest-members': 'warn',
+      'suggest-members/suggest-imports': 'warn',
     },
-  }
+  },
+};
+
+// Создаем плагин с полями rules, meta и configs
+const plugin = {
+  rules,
+  meta,
+  configs
 };
 
 // Register the full-format-style formatter for direct use with ESLint
@@ -51,4 +67,12 @@ try {
   // Silently ignore - formatter registration is optional
 }
 
-export default plugin; 
+// Экспортируем отдельно поля для возможности импорта { rules, meta, configs }
+export default plugin;
+
+// Добавляем поддержку module.exports = ... для CommonJS
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof module !== 'undefined' && (module as any).exports) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (module as any).exports = Object.assign((module as any).exports.default || {}, (module as any).exports, plugin);
+} 
