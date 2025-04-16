@@ -1,5 +1,5 @@
-import { ESLintUtils, TSESTree } from '@typescript-eslint/utils';
-import * as ts from 'typescript';
+import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
+// import * as ts from 'typescript';
 import { getFormattedMembersList } from '../utils/helpers';
 
 export default ESLintUtils.RuleCreator.withoutDocs({
@@ -24,7 +24,7 @@ export default ESLintUtils.RuleCreator.withoutDocs({
     const checker = parserServices.program.getTypeChecker();
 
     return {
-      MemberExpression(node: TSESTree.MemberExpression) {
+      MemberExpression(node: TSESTree.MemberExpression): void {
         // Skip computed properties like obj[foo]
         if (node.computed) return;
         // Skip nested property access
@@ -79,12 +79,12 @@ export default ESLintUtils.RuleCreator.withoutDocs({
                   return {
                     messageId: 'suggestMemberFix',
                     data: { memberName: actualName },
-                    fix: fixer => fixer.replaceText(node.property, actualName),
+                    fix: (fixer): TSESLint.RuleFix => fixer.replaceText(node.property, actualName),
                   };
                 }),
               });
             }
-          } catch (error) {
+          } catch {
             // Continue silently if getting suggestions fails
           }
         }

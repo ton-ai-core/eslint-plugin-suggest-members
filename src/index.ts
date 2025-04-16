@@ -16,7 +16,7 @@ export const rules = {
  */
 export const meta = {
   name: 'eslint-plugin-suggest-members',
-  version: '1.5.1',
+  version: '1.5.2',
 };
 
 /**
