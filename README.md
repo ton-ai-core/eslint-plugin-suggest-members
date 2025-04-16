@@ -1,51 +1,64 @@
-# eslint-plugin-suggest-members
+# ESLint Plugin: suggest-members
 
-ESLint plugin for TypeScript that detects typos in member access, imports, and identifiers and suggests corrections.
+An ESLint plugin that suggests potential corrections when accessing non-existent object members or using incorrect imports in TypeScript.
 
 ## Features
 
-- Detects non-existent object properties/methods
-- Identifies import errors
-- Suggests corrections using string similarity algorithms
-- Displays full method signatures in suggestions
+- 🔍 **Member Suggestion**: Suggests possible member names when accessing non-existent properties on objects
+- 📦 **Import Correction**: Suggests possible exports when using incorrect import names
+- 💡 **Smart Suggestions**: Uses multiple similarity algorithms including Jaro-Winkler to find the most relevant suggestions
+- 🛠️ **Automatic Fixes**: Offers automatic fixes for typos in member names and imports
 
 ## Installation
 
 ```bash
-npm install eslint-plugin-suggest-members --save-dev
+npm install --save-dev @ton-ai-core/eslint-plugin-suggest-members
+# or
+yarn add --dev @ton-ai-core/eslint-plugin-suggest-members
 ```
 
-## Configuration
+This plugin requires:
+- ESLint v7.0.0+
+- TypeScript v4.0.0+
+- @typescript-eslint/parser v5.0.0+
 
-### ESLint Flat Config (ESLint v9+)
+## Usage
+
+### ESLint v9 (Flat Config)
 
 ```js
-// eslint.config.js
-import suggestMembers from 'eslint-plugin-suggest-members';
+// eslint.config.js or eslint.config.mjs
+import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
+import * as path from 'path';
+import suggestMembersPlugin from "@ton-ai-core/eslint-plugin-suggest-members";
 
 export default [
+  js.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.tsx'],
-    plugins: {
-      'suggest-members': suggestMembers
-    },
+    files: ["**/*.ts"],
     languageOptions: {
-      parser: require('@typescript-eslint/parser'),
+      parser: tsParser,
       parserOptions: {
-        ecmaVersion: 2020,
-        sourceType: 'module',
-        project: './tsconfig.json',
-      },
+        project: ["./tsconfig.json"],
+        tsconfigRootDir: path.resolve(),
+        sourceType: "module"
+      }
+    },
+    plugins: {
+      "@typescript-eslint": tsPlugin,
+      "suggest-members": suggestMembersPlugin
     },
     rules: {
-      'suggest-members/suggest-members': 'error',
-      'suggest-members/suggest-imports': 'error'
+      "suggest-members/suggest-members": "error",
+      "suggest-members/suggest-imports": "error"
     }
   }
 ];
 ```
 
-### Legacy Config
+### ESLint v8 and earlier (Traditional Config)
 
 ```js
 // .eslintrc.js
@@ -56,7 +69,11 @@ module.exports = {
     sourceType: 'module',
     project: './tsconfig.json',
   },
-  plugins: ['suggest-members'],
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+  ],
+  plugins: ['@typescript-eslint', 'suggest-members'],
   rules: {
     'suggest-members/suggest-members': 'error',
     'suggest-members/suggest-imports': 'error'
@@ -64,39 +81,41 @@ module.exports = {
 };
 ```
 
-## Rules
+## Available Rules
 
-### suggest-members
+### suggest-members/suggest-members
 
-Detects access to non-existent properties/methods on objects and suggests similar names.
-
-Example:
-```typescript
-// Error: Property "fooo" does not exist on type "MyClass". Did you mean:
-// - foo: number
-// - processData(data: string): string
-// - getFullName(): string
-console.log(obj.fooo);
-```
-
-### suggest-imports
-
-Detects errors in imports and undefined identifiers.
+Suggests similar property/method names when accessing non-existent members on an object.
 
 Example:
-```typescript
-// Error: Import "Bufffer" is not defined in module "fs". Did you mean:
-// - Buffer
-// - readFile
-// - writeFile
-import { Bufffer } from 'fs';
+```ts
+class User {
+  firstName: string;
+  lastName: string;
+  getFullName(): string {
+    return this.firstName + ' ' + this.lastName;
+  }
+}
+
+const user = new User();
+user.getFullNam(); // Error: Property "getFullNam" does not exist on type "User". Did you mean: "getFullName"?
 ```
 
-## Requirements
+### suggest-members/suggest-imports
 
-- Node.js 14.x or higher
-- ESLint 8.x or higher
-- TypeScript 4.x or higher
+Suggests possible exports when trying to import a non-existent symbol from a module.
+
+Example:
+```ts
+import { readFil } from 'fs'; // Error: Import "readFil" is not defined in module "fs". Did you mean: "readFile"?
+```
+
+## Configuration
+
+Both rules can be configured as:
+- `"error"` - Report errors (recommended for catching bugs)
+- `"warn"` - Report warnings
+- `"off"` - Disable the rule
 
 ## License
 

@@ -1,19 +1,10 @@
-import { ESLintUtils, TSESTree } from '@typescript-eslint/utils';
-import * as ts from 'typescript';
+import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
 import { 
   findPossibleExports, 
   findSimilarLocalSymbols, 
   isTypescriptGlobal,
-  computeCompositeScore
 } from '../utils/helpers';
 
-// Включаем отладочный вывод
-const DEBUG = true;
-const debug = (...args: any[]) => {
-  if (DEBUG) {
-    console.log('[DEBUG:suggest-imports]', ...args);
-  }
-};
 
 export default ESLintUtils.RuleCreator.withoutDocs({
   meta: {
@@ -36,7 +27,6 @@ export default ESLintUtils.RuleCreator.withoutDocs({
   defaultOptions: [],
 
   create(context) {
-    debug('Initializing suggest-imports rule');
     // Get TypeScript services
     const parserServices = ESLintUtils.getParserServices(context);
     const checker = parserServices.program.getTypeChecker();
@@ -44,41 +34,31 @@ export default ESLintUtils.RuleCreator.withoutDocs({
     /**
      * Handles named imports that don't exist
      */
-    function handleInvalidNamedImport(node: TSESTree.ImportSpecifier, sourceValue: string) {
+    function handleInvalidNamedImport(node: TSESTree.ImportSpecifier, sourceValue: string): void {
       const importName = node.imported.type === 'Identifier' ? node.imported.name : '';
-      debug(`Handling invalid import: ${importName} from ${sourceValue}`);
       
       // Try to find similar exports
       try {
         // Get the module symbol directly
         const sourceNode = node.parent?.parent as TSESTree.ImportDeclaration;
         if (!sourceNode || !sourceNode.source) {
-          debug('Source node or source not found');
           return;
         }
         
-        debug(`Trying to get symbol for module: ${sourceValue}`);
         const moduleNode = parserServices.esTreeNodeToTSNodeMap.get(sourceNode.source);
         const moduleSymbol = checker.getSymbolAtLocation(moduleNode);
         
         if (!moduleSymbol) {
-          debug('Module symbol not found');
           return;
         }
         
-        debug(`Found module symbol: ${moduleSymbol.getName()}`);
-        
-        // Find possible exports from the module matching the import
-        debug(`Looking for possible exports similar to: ${importName}`);
         const possibleExports = findPossibleExports(checker, importName, moduleSymbol);
-        debug(`Found ${possibleExports.length} possible exports:`, possibleExports);
         
         // Report with suggestions if any found
         if (possibleExports.length > 0) {
           const suggestionsText = possibleExports.map(suggestion => 
             `  - ${suggestion.name}`).join('\n');
           
-          debug(`Reporting with suggestions: ${suggestionsText}`);  
           context.report({
             node,
             messageId: 'importWithSuggestions',
@@ -90,12 +70,11 @@ export default ESLintUtils.RuleCreator.withoutDocs({
             suggest: possibleExports.map(suggestion => ({
               messageId: 'suggestImport',
               data: { memberName: suggestion.name },
-              fix: (fixer) => fixer.replaceText(node.imported, suggestion.name),
+              fix: (fixer): TSESLint.RuleFix => fixer.replaceText(node.imported, suggestion.name),
             })),
           });
         } else {
           // Report without suggestions
-          debug(`No suggestions found, reporting without suggestions`);
           context.report({
             node,
             messageId: 'importNotFound',
@@ -105,9 +84,8 @@ export default ESLintUtils.RuleCreator.withoutDocs({
             },
           });
         }
-      } catch (error) {
+      } catch {
         // If module resolution fails, report without suggestions
-        debug(`Error handling import: ${error}`);
         context.report({
           node,
           messageId: 'importNotFound',
@@ -122,24 +100,20 @@ export default ESLintUtils.RuleCreator.withoutDocs({
     /**
      * Handles identifiers that aren't defined
      */
-    function handleUndefinedIdentifier(node: TSESTree.Identifier) {
+    function handleUndefinedIdentifier(node: TSESTree.Identifier): void {
       const variableName = node.name;
-      debug(`Handling undefined identifier: ${variableName}`);
       
       // Convert to TS node
       const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
       
       // Find similar local symbols
-      debug(`Looking for similar local symbols for: ${variableName}`);
       const similarSymbols = findSimilarLocalSymbols(checker, tsNode, variableName);
-      debug(`Found ${similarSymbols.length} similar symbols:`, similarSymbols);
       
       // Report with suggestions if any found
       if (similarSymbols.length > 0) {
         const suggestionsText = similarSymbols.map(symbol => 
           `  - ${symbol.name}`).join('\n');
           
-        debug(`Reporting with suggestions: ${suggestionsText}`);
         context.report({
           node,
           messageId: 'undefinedVarWithSuggestions',
@@ -150,12 +124,11 @@ export default ESLintUtils.RuleCreator.withoutDocs({
           suggest: similarSymbols.map(symbol => ({
             messageId: 'suggestLocalVar',
             data: { varName: symbol.name },
-            fix: (fixer) => fixer.replaceText(node, symbol.name),
+            fix: (fixer): TSESLint.RuleFix => fixer.replaceText(node, symbol.name),
           })),
         });
       } else {
         // Report without suggestions
-        debug(`No similar symbols found, reporting without suggestions`);
         context.report({
           node,
           messageId: 'undefinedVar',
@@ -166,8 +139,7 @@ export default ESLintUtils.RuleCreator.withoutDocs({
 
     return {
       // Check import specifiers
-      'ImportSpecifier'(node: TSESTree.ImportSpecifier) {
-        debug('Checking ImportSpecifier', node.imported);
+      'ImportSpecifier'(node: TSESTree.ImportSpecifier): void {
         
         try {
           // Находим родительский ImportDeclaration
@@ -184,27 +156,21 @@ export default ESLintUtils.RuleCreator.withoutDocs({
           }
           
           if (!importDeclaration) {
-            debug('ImportDeclaration not found in parent chain');
             return;
           }
           
-          debug('Import source:', importDeclaration.source?.value);
           
           const sourceValue = typeof importDeclaration.source?.value === 'string' 
             ? importDeclaration.source.value
             : '';
           
           if (!sourceValue) {
-            debug('Source value is empty');
             return;
           }
-          
-          debug(`Processing import from: ${sourceValue}`);
           
           // Универсальная обработка импортов через TypeScript Compiler API
           if (node.imported.type === 'Identifier') {
             const importName = node.imported.name;
-            debug(`Checking import: ${importName} from ${sourceValue}`);
             
             try {
               // Получаем модуль и его экспорты через TypeScript
@@ -212,25 +178,19 @@ export default ESLintUtils.RuleCreator.withoutDocs({
               const moduleSymbol = checker.getSymbolAtLocation(moduleNode);
               
               if (moduleSymbol) {
-                debug(`Found module symbol: ${moduleSymbol.getName()}`);
                 const exports = checker.getExportsOfModule(moduleSymbol);
-                debug(`Module has ${exports.length} exports`);
                 
                 const exportExists = exports.some(exp => exp.getName() === importName);
-                debug(`Export ${importName} exists: ${exportExists}`);
                 
                 if (!exportExists) {
-                  debug(`Export ${importName} not found, handling invalid import`);
                   
                   // Используем функцию findPossibleExports для поиска похожих экспортов
                   const possibleExports = findPossibleExports(checker, importName, moduleSymbol);
                   
                   if (possibleExports.length > 0) {
                     const suggestionsText = possibleExports
-                      .map(p => `  - ${p.name} (score: ${p.score.toFixed(2)})`)
+                      .map(p => `  - ${p.name})`)
                       .join('\n');
-                    
-                    debug(`Reporting with suggestions: ${suggestionsText}`);
                     
                     context.report({
                       node,
@@ -243,12 +203,11 @@ export default ESLintUtils.RuleCreator.withoutDocs({
                       suggest: possibleExports.map(suggestion => ({
                         messageId: 'suggestImport',
                         data: { memberName: suggestion.name },
-                        fix: (fixer) => fixer.replaceText(node.imported, suggestion.name),
+                        fix: (fixer): TSESLint.RuleFix => fixer.replaceText(node.imported, suggestion.name),
                       })),
                     });
                   } else {
                     // Если похожих экспортов не найдено, выводим сообщение без предложений
-                    debug('No suggestions found for import');
                     context.report({
                       node,
                       messageId: 'importNotFound',
@@ -260,24 +219,21 @@ export default ESLintUtils.RuleCreator.withoutDocs({
                   }
                 }
               } else {
-                debug(`Module symbol not found for ${sourceValue}, trying fallback approach`);
                 // Пробуем запасной подход через handleInvalidNamedImport
                 handleInvalidNamedImport(node, sourceValue);
               }
-            } catch (error) {
-              debug(`Error processing import with TypeScript API: ${error}, trying fallback`);
+            } catch {
               // В случае ошибки используем запасной подход
               handleInvalidNamedImport(node, sourceValue);
             }
           }
-        } catch (error) {
+        } catch {
           // If we can't find the import declaration, proceed silently
-          debug(`Error checking import: ${error}`);
         }
       },
       
       // Check identifiers
-      'Identifier'(node: TSESTree.Identifier) {
+      'Identifier'(node: TSESTree.Identifier): void {
         // Skip identifiers in certain positions
         if (
           node.parent &&

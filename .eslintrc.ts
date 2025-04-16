@@ -1,8 +1,8 @@
 /**
- * .eslintrc.js - Конфигурация ESLint в старом формате
+ * .eslintrc.ts - Конфигурация ESLint в старом формате
  * Для ESLint < v9.0.0 или при использовании ESLINT_USE_FLAT_CONFIG=false
  */
-module.exports = {
+const config = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 2020,
@@ -16,7 +16,7 @@ module.exports = {
   plugins: ['@typescript-eslint', 'suggest-members'],
   rules: {
     'suggest-members/check-member-existence': 'error'
-  },
-  // Указываем форматтер tact-style как форматтер по умолчанию
-  formatter: './formatters/tact-style.js'
-}; 
+  }
+};
+
+export default config; 
