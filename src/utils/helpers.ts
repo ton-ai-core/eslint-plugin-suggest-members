@@ -190,7 +190,7 @@ export function getFormattedMembersList(
         displayName,
         score
       });
-    } catch (error) {
+    } catch {
       // In case of error, add just the property name
       result.push({
         name: property.name,
@@ -219,31 +219,13 @@ export function findPossibleExports(
   moduleSymbol: ts.Symbol | undefined,
 ): { name: string; score: number }[] {
   // Включаем отладочный вывод
-  const DEBUG = true;
-  const debug = (...args: any[]) => {
-    if (DEBUG) {
-      console.log('[DEBUG:findPossibleExports]', ...args);
-    }
-  };
-
-  debug(`Finding exports similar to '${requestedName}'`);
   
   if (!moduleSymbol) {
-    debug('Module symbol is undefined');
     return [];
   }
 
   try {
-    const moduleName = moduleSymbol.getName();
-    debug(`Module name: ${moduleName}`);
-    
     const exports = checker.getExportsOfModule(moduleSymbol) || [];
-    debug(`Found ${exports.length} exports in the module`);
-    
-    // Логируем все доступные экспорты для анализа
-    if (exports.length > 0) {
-      debug(`Available exports:`, exports.map(e => e.getName()));
-    }
     
     const results: { name: string; score: number }[] = [];
     const MIN_SCORE = 0.3;
@@ -252,8 +234,6 @@ export function findPossibleExports(
     exports.forEach(exportSymbol => {
       const exportName = exportSymbol.getName();
       const score = computeCompositeScore(requestedName, exportName);
-      
-      debug(`Export: ${exportName}, Score: ${score}`);
       
       if (score > MIN_SCORE) {
         results.push({ name: exportName, score });
@@ -266,11 +246,8 @@ export function findPossibleExports(
     // Берем только 5 лучших результатов
     const limitedResults = sortedResults.slice(0, 5);
     
-    debug(`Final results (${limitedResults.length}):`, limitedResults);
-    
     return limitedResults;
-  } catch (error) {
-    debug(`Error finding exports: ${error}`);
+  } catch {
     return [];
   }
 }
