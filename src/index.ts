@@ -2,6 +2,7 @@ import { ESLintUtils } from '@typescript-eslint/utils';
 import path from 'path';
 import suggestMembersRule from './rules/suggest-members';
 import suggestImportsRule from './rules/suggest-imports';
+import suggestModulePathsRule from './rules/suggest-module-paths';
 
 /**
  * Plugin rules
@@ -9,6 +10,7 @@ import suggestImportsRule from './rules/suggest-imports';
 export const rules = {
   'suggest-members': suggestMembersRule,
   'suggest-imports': suggestImportsRule,
+  'suggest-module-paths': suggestModulePathsRule,
 };
 
 /**

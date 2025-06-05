@@ -235,7 +235,7 @@ export function findPossibleExports(
       const exportName = exportSymbol.getName();
       const score = computeCompositeScore(requestedName, exportName);
       
-      if (score > MIN_SCORE) {
+      if (score >= MIN_SCORE) {
         results.push({ name: exportName, score });
       }
     });

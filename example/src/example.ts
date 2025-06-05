@@ -12,7 +12,7 @@ class MyClass {
   }
 }
 
-// Корректное использование
+// Correct usage
 const obj = new MyClass();
 obj.ping();
 console.log(obj.foo);

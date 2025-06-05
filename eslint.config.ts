@@ -16,7 +16,7 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: ["./tsconfig.json"],
+        project: ["./tsconfig.json", "./example/tsconfig.json"],
         tsconfigRootDir: path.resolve(),
         sourceType: "module"
       },
@@ -34,7 +34,8 @@ export default [
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/explicit-function-return-type": "warn",
       "suggest-members/suggest-members": "error",
-      "suggest-members/suggest-imports": "error"
+      "suggest-members/suggest-imports": "error",
+      "suggest-members/suggest-module-paths": "error"
     }
   }
 ]; 
