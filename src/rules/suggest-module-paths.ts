@@ -33,7 +33,9 @@ export default ESLintUtils.RuleCreator.withoutDocs({
       requestedPath: string,
       currentFilePath: string
     ): { path: string; score: number }[] {
-      const MIN_SCORE = 0.3;
+      // Adaptive threshold: lower for longer paths to catch complex names
+      const baseFileName = path.basename(requestedPath);
+      const MIN_SCORE = baseFileName.length > 20 ? 0.2 : 0.3;
       const results: { path: string; score: number }[] = [];
       
       try {
@@ -305,6 +307,90 @@ export default ESLintUtils.RuleCreator.withoutDocs({
                 data: { modulePath },
               });
             }
+          }
+        }
+      },
+
+      'ExportAllDeclaration'(node: TSESTree.ExportAllDeclaration): void {
+        if (!node.source || node.source.type !== 'Literal' || typeof node.source.value !== 'string') {
+          return;
+        }
+
+        const modulePath = node.source.value;
+        const currentFilePath = context.getFilename();
+        
+        // Check if module cannot be found
+        if (isModuleNotFound(modulePath, currentFilePath)) {
+          const similarPaths = findSimilarModulePaths(modulePath, currentFilePath);
+          
+          if (similarPaths.length > 0) {
+            const suggestionsText = similarPaths.map(suggestion => 
+              `  - ${suggestion.path}`).join('\n');
+            
+            context.report({
+              node: node.source,
+              messageId: 'moduleNotFoundWithSuggestions',
+              data: {
+                modulePath,
+                suggestions: suggestionsText
+              },
+              suggest: similarPaths.map(suggestion => ({
+                messageId: 'suggestModulePath',
+                data: { modulePath: suggestion.path },
+                fix: (fixer): TSESLint.RuleFix => fixer.replaceText(
+                  node.source!,
+                  `"${suggestion.path}"`
+                ),
+              })),
+            });
+          } else {
+            context.report({
+              node: node.source,
+              messageId: 'moduleNotFound',
+              data: { modulePath },
+            });
+          }
+        }
+      },
+
+      'ExportNamedDeclaration'(node: TSESTree.ExportNamedDeclaration): void {
+        if (!node.source || node.source.type !== 'Literal' || typeof node.source.value !== 'string') {
+          return;
+        }
+
+        const modulePath = node.source.value;
+        const currentFilePath = context.getFilename();
+        
+        // Check if module cannot be found
+        if (isModuleNotFound(modulePath, currentFilePath)) {
+          const similarPaths = findSimilarModulePaths(modulePath, currentFilePath);
+          
+          if (similarPaths.length > 0) {
+            const suggestionsText = similarPaths.map(suggestion => 
+              `  - ${suggestion.path}`).join('\n');
+            
+            context.report({
+              node: node.source,
+              messageId: 'moduleNotFoundWithSuggestions',
+              data: {
+                modulePath,
+                suggestions: suggestionsText
+              },
+              suggest: similarPaths.map(suggestion => ({
+                messageId: 'suggestModulePath',
+                data: { modulePath: suggestion.path },
+                fix: (fixer): TSESLint.RuleFix => fixer.replaceText(
+                  node.source!,
+                  `"${suggestion.path}"`
+                ),
+              })),
+            });
+          } else {
+            context.report({
+              node: node.source,
+              messageId: 'moduleNotFound',
+              data: { modulePath },
+            });
           }
         }
       },
