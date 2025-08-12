@@ -10,7 +10,7 @@
     "outDir": "./dist",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["./src/**/*.ts", "eslint.config.ts", ".eslintrc.ts"],
+  "include": ["./src/**/*.ts", "./src/**/*.tsx", "eslint.config.ts", ".eslintrc.ts"],
   "ts-node": {
     "compilerOptions": {
       "module": "commonjs"

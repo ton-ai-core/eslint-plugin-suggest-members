@@ -11,7 +11,7 @@ import suggestMembersPlugin from "./src/index";
 export default [
   js.configs.recommended,
   {
-    files: ["src/**/*.ts", "example/**/*.ts"],
+    files: ["src/**/*.{ts,tsx}", "example/**/*.{ts,tsx}", "**/*.test.ts"],
     ignores: ["dist/**/*"],
     languageOptions: {
       parser: tsParser,
@@ -36,6 +36,17 @@ export default [
       "suggest-members/suggest-members": "error",
       "suggest-members/suggest-imports": "error",
       "suggest-members/suggest-module-paths": "error"
+    },
+  },
+  {
+    files: ["**/*.test.ts"],
+    languageOptions: {
+      globals: {
+        describe: true,
+        test: true,
+        expect: true,
+        jest: true
+      }
     }
   }
 ]; 

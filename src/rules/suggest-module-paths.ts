@@ -2,7 +2,8 @@ import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
 import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
-import { computeCompositeScore } from '../utils/helpers';
+import { builtinModules } from 'module';
+import { compositeScore } from '../utils/helpers';
 
 export default ESLintUtils.RuleCreator.withoutDocs({
   meta: {
@@ -22,9 +23,8 @@ export default ESLintUtils.RuleCreator.withoutDocs({
   defaultOptions: [],
 
   create(context) {
-    // Get TypeScript services
-    const parserServices = ESLintUtils.getParserServices(context);
-    const program = parserServices.program;
+    const { program } = ESLintUtils.getParserServices(context);
+    const exts = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs','.json','.css','.scss','.sass']);
 
     /**
      * Finds similar module paths in the file system
@@ -33,139 +33,111 @@ export default ESLintUtils.RuleCreator.withoutDocs({
       requestedPath: string,
       currentFilePath: string
     ): { path: string; score: number }[] {
-      // Adaptive threshold: lower for longer paths to catch complex names
-      const baseFileName = path.basename(requestedPath);
-      const MIN_SCORE = baseFileName.length > 20 ? 0.2 : 0.3;
       const results: { path: string; score: number }[] = [];
-      
-      try {
-        const currentDir = path.dirname(currentFilePath);
-        const isRelativeImport = requestedPath.startsWith('./') || requestedPath.startsWith('../');
-        
-        if (isRelativeImport) {
-          // Handle relative imports
-          const targetDir = path.resolve(currentDir, path.dirname(requestedPath));
-          const requestedFilename = path.basename(requestedPath);
-          
-          if (fs.existsSync(targetDir)) {
-            const files = fs.readdirSync(targetDir);
-            
-            files.forEach(file => {
-              const fileBasename = path.basename(file, path.extname(file));
-              const score = computeCompositeScore(requestedFilename, fileBasename);
-              
+      const seen = new Set<string>();
+      const currentDir = path.dirname(currentFilePath);
+
+      const reqBase = baseWithoutExt(requestedPath);
+      const reqDir = path.resolve(currentDir, path.dirname(requestedPath));
+      const normBase = reqBase.replace(/[_\s./-]/g, '').toLowerCase();
+
+      const MIN_SCORE = normBase.length >= 10 ? 0.33 : 0.35;
+
+      // 1) Same directory candidates and neighbors
+      if (requestedPath.startsWith('./') || requestedPath.startsWith('../')) {
+        try {
+          if (fs.existsSync(reqDir)) {
+            const entries = fs.readdirSync(reqDir);
+            for (const e of entries) {
+              const full = path.join(reqDir, e);
+              const stat = fs.statSync(full);
+              const candidateBase = stat.isDirectory() ? e : baseWithoutExt(e);
+
+              const score = scoreOf(reqBase, candidateBase);
               if (score >= MIN_SCORE) {
-                const relativePath = path.relative(currentDir, path.join(targetDir, fileBasename));
-                const normalizedPath = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
-                
-                results.push({
-                  path: normalizedPath.replace(/\\/g, '/'),
-                  score
-                });
-              }
-            });
-          }
-          
-          // Also search in parent and sibling directories
-          const searchDirs = [
-            path.resolve(currentDir, '..'),
-            path.resolve(currentDir, '../..'),
-            currentDir
-          ];
-          
-          searchDirs.forEach(searchDir => {
-            if (fs.existsSync(searchDir)) {
-              try {
-                const items = fs.readdirSync(searchDir);
-                items.forEach(item => {
-                  const itemPath = path.join(searchDir, item);
-                  if (fs.statSync(itemPath).isDirectory()) {
-                    const score = computeCompositeScore(requestedPath, item);
-                    if (score >= MIN_SCORE) {
-                      const relativePath = path.relative(currentDir, itemPath);
-                      const normalizedPath = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
-                      
-                      results.push({
-                        path: normalizedPath.replace(/\\/g, '/'),
-                        score
-                      });
-                    }
-                  }
-                });
-              } catch {
-                // Ignore errors when reading directories
+                // For files, suggest full filename with extension; for directories, suggest the directory path
+                const suggestionPath = stat.isDirectory()
+                  ? normalizeRel(currentDir, full)
+                  : normalizeRel(currentDir, path.join(reqDir, e));
+                uniqPush(results, { path: suggestionPath, score }, seen);
               }
             }
-          });
-        } else {
-          // Handle node_modules imports
-          const nodeModulesPath = findNodeModules(currentDir);
-          if (nodeModulesPath && fs.existsSync(nodeModulesPath)) {
-            try {
-              const packages = fs.readdirSync(nodeModulesPath);
-              
-              packages.forEach(packageName => {
-                if (packageName.startsWith('.')) return;
-                
-                const score = computeCompositeScore(requestedPath, packageName);
-                if (score >= MIN_SCORE) {
-                  results.push({
-                    path: packageName,
-                    score
-                  });
-                }
-                
-                // Handle scoped packages
-                if (packageName.startsWith('@')) {
-                  const scopedPath = path.join(nodeModulesPath, packageName);
-                  if (fs.existsSync(scopedPath) && fs.statSync(scopedPath).isDirectory()) {
-                    try {
-                      const scopedPackages = fs.readdirSync(scopedPath);
-                      scopedPackages.forEach(scopedPkg => {
-                        const fullName = `${packageName}/${scopedPkg}`;
-                        const score = computeCompositeScore(requestedPath, fullName);
-                        if (score >= MIN_SCORE) {
-                          results.push({
-                            path: fullName,
-                            score
-                          });
-                        }
-                      });
-                    } catch {
-                      // Ignore errors
-                    }
-                  }
-                }
-              });
-            } catch {
-              // Ignore errors when reading node_modules
-            }
           }
+        } catch { /* ignore fs errors */ }
+
+        const searchDirs = [
+          currentDir,
+          path.resolve(currentDir, '..'),
+          path.resolve(currentDir, '../..')
+        ];
+        for (const dir of searchDirs) {
+          try {
+            if (!fs.existsSync(dir)) continue;
+            for (const item of fs.readdirSync(dir)) {
+              const full = path.join(dir, item);
+              const stat = fs.statSync(full);
+              const candidateBase = stat.isDirectory() ? item : baseWithoutExt(item);
+              const score = scoreOf(requestedPath, candidateBase);
+              if (score >= MIN_SCORE) {
+                uniqPush(results, { path: normalizeRel(currentDir, stat.isDirectory() ? full : path.join(dir, candidateBase)), score }, seen);
+              }
+            }
+          } catch { /* ignore */ }
         }
-      } catch {
-        // Ignore all errors in file system operations
+      } else {
+        // 2) node_modules
+        const nm = findNodeModules(currentDir);
+        if (nm && fs.existsSync(nm)) {
+          try {
+            for (const pkg of fs.readdirSync(nm)) {
+              if (pkg.startsWith('.')) continue;
+              const scoreTop = scoreOf(requestedPath, pkg);
+              if (scoreTop >= MIN_SCORE) uniqPush(results, { path: pkg, score: scoreTop }, seen);
+
+              if (pkg.startsWith('@')) {
+                const scopedPath = path.join(nm, pkg);
+                if (fs.existsSync(scopedPath) && fs.statSync(scopedPath).isDirectory()) {
+                  for (const sub of fs.readdirSync(scopedPath)) {
+                    const full = `${pkg}/${sub}`;
+                    const score = scoreOf(requestedPath, full);
+                    if (score >= MIN_SCORE) uniqPush(results, { path: full, score }, seen);
+                  }
+                }
+              }
+            }
+          } catch { /* ignore */ }
+        }
       }
-      
-      // Sort by score and return top suggestions
-      return results
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+
+      // 3) If requested has an extension, also score full filenames in the same dir
+      if ((requestedPath.startsWith('./') || requestedPath.startsWith('../')) && path.extname(reqBase) !== '') {
+        try {
+          if (fs.existsSync(reqDir)) {
+            for (const e of fs.readdirSync(reqDir)) {
+              const full = path.join(reqDir, e);
+              if (!fs.statSync(full).isDirectory()) {
+                const score = scoreOf(path.basename(requestedPath), e);
+                if (score >= MIN_SCORE) uniqPush(results, { path: normalizeRel(currentDir, full), score }, seen);
+              }
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      results.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+      return results.slice(0, 5);
     }
 
     /**
      * Finds the nearest node_modules directory
      */
     function findNodeModules(startDir: string): string | null {
-      let currentDir = startDir;
-      
-      while (currentDir !== path.dirname(currentDir)) {
-        const nodeModulesPath = path.join(currentDir, 'node_modules');
-        if (fs.existsSync(nodeModulesPath)) {
-          return nodeModulesPath;
-        }
-        currentDir = path.dirname(currentDir);
+      let cur = startDir;
+      while (cur !== path.dirname(cur)) {
+        const nm = path.join(cur, 'node_modules');
+        if (fs.existsSync(nm)) return nm;
+        cur = path.dirname(cur);
       }
-      
       return null;
     }
 
@@ -173,53 +145,59 @@ export default ESLintUtils.RuleCreator.withoutDocs({
      * Checks if a module is a Node.js built-in module
      */
     function isBuiltinModule(moduleName: string): boolean {
-      // Use Node.js built-in modules list dynamically
-      // This avoids hardcoding and stays up-to-date
-      try {
-        // Dynamic import of Node.js built-in modules list
-        // We use eval to avoid bundlers treating this as a static import
-        const Module = eval('require')('module');
-        if (Module && Module.builtinModules) {
-          return Module.builtinModules.includes(moduleName);
-        }
-      } catch {
-        // If Module.builtinModules is not available, fallback to manual check
-      }
-      
-      // Fallback: Check using TypeScript's resolution for common built-ins only
-      // This is a minimal set that covers the most common cases
-      const coreModules = ['fs', 'path', 'http', 'https', 'url', 'os', 'crypto', 'util', 'events', 'stream'];
-      return coreModules.includes(moduleName);
+      return builtinModules.includes(moduleName) || builtinModules.includes(`node:${moduleName}`);
     }
 
     /**
      * Checks if a module path cannot be resolved
      */
     function isModuleNotFound(modulePath: string, currentFilePath: string): boolean {
-      // Skip Node.js built-in modules
-      if (isBuiltinModule(modulePath)) {
-        return false;
-      }
-      
-      // Skip node: prefixed modules
-      if (modulePath.startsWith('node:')) {
-        const bareModule = modulePath.slice(5);
-        return !isBuiltinModule(bareModule);
-      }
-      
+      if (isBuiltinModule(modulePath)) return false;
+      if (modulePath.startsWith('node:')) return !isBuiltinModule(modulePath.slice(5));
+      // Quick FS short-circuit for relative imports, including non-TS assets like .css
       try {
-        // Use TypeScript's module resolution
-        const resolved = ts.resolveModuleName(
+        if (modulePath.startsWith('./') || modulePath.startsWith('../')) {
+          const currentDir = path.dirname(currentFilePath);
+          const abs = path.resolve(currentDir, modulePath);
+          if (fs.existsSync(abs)) return false;
+          const hasExt = path.extname(modulePath) !== '';
+          if (!hasExt) {
+            for (const ext of exts) {
+              if (fs.existsSync(abs + ext)) return false;
+            }
+          }
+        }
+      } catch { /* ignore */ }
+      try {
+        const res = ts.resolveModuleName(
           modulePath,
           currentFilePath,
           program.getCompilerOptions(),
           ts.sys
         );
-        
-        return !resolved.resolvedModule;
+        return !res?.resolvedModule;
       } catch {
         return true;
       }
+    }
+
+    function normalizeRel(fromDir: string, p: string): string {
+      const rel = path.relative(fromDir, p).replace(/\\/g, '/');
+      return rel.startsWith('.') ? rel : `./${rel}`;
+    }
+
+    function baseWithoutExt(p: string): string {
+      const base = path.basename(p);
+      const ext = path.extname(base);
+      return ext ? base.slice(0, -ext.length) : base;
+    }
+
+    function uniqPush(arr: { path: string; score: number }[], item: { path: string; score: number }, seen: Set<string>): void {
+      if (!seen.has(item.path)) { seen.add(item.path); arr.push(item); }
+    }
+
+    function scoreOf(requested: string, candidate: string): number {
+      return compositeScore(requested, candidate);
     }
 
     return {

@@ -1,9 +1,5 @@
 import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
-import { 
-  findPossibleExports, 
-  findSimilarLocalSymbols, 
-  isTypescriptGlobal,
-} from '../utils/helpers';
+import { findPossibleExports, findSimilarLocalSymbols, isTypescriptGlobal } from '../utils/helpers';
 
 
 export default ESLintUtils.RuleCreator.withoutDocs({
@@ -34,7 +30,7 @@ export default ESLintUtils.RuleCreator.withoutDocs({
     /**
      * Handles named imports that don't exist
      */
-    function handleInvalidNamedImport(node: TSESTree.ImportSpecifier, sourceValue: string): void {
+    function reportInvalidNamedImport(node: TSESTree.ImportSpecifier, sourceValue: string): void {
       const importName = node.imported.type === 'Identifier' ? node.imported.name : '';
       
       // Try to find similar exports
@@ -49,6 +45,7 @@ export default ESLintUtils.RuleCreator.withoutDocs({
         const moduleSymbol = checker.getSymbolAtLocation(moduleNode);
         
         if (!moduleSymbol) {
+          context.report({ node, messageId: 'importNotFound', data: { name: importName, module: sourceValue } });
           return;
         }
         
@@ -74,26 +71,11 @@ export default ESLintUtils.RuleCreator.withoutDocs({
             })),
           });
         } else {
-          // Report without suggestions
-          context.report({
-            node,
-            messageId: 'importNotFound',
-            data: {
-              name: importName,
-              module: sourceValue,
-            },
-          });
+          context.report({ node, messageId: 'importNotFound', data: { name: importName, module: sourceValue } });
         }
       } catch {
         // If module resolution fails, report without suggestions
-        context.report({
-          node,
-          messageId: 'importNotFound',
-          data: {
-            name: importName,
-            module: sourceValue,
-          },
-        });
+        context.report({ node, messageId: 'importNotFound', data: { name: importName, module: sourceValue } });
       }
     }
 
@@ -155,76 +137,30 @@ export default ESLintUtils.RuleCreator.withoutDocs({
             current = current.parent;
           }
           
-          if (!importDeclaration) {
-            return;
-          }
+          if (!importDeclaration) return;
           
           
           const sourceValue = typeof importDeclaration.source?.value === 'string' 
             ? importDeclaration.source.value
             : '';
           
-          if (!sourceValue) {
-            return;
-          }
+          if (!sourceValue) return;
           
           // Универсальная обработка импортов через TypeScript Compiler API
           if (node.imported.type === 'Identifier') {
             const importName = node.imported.name;
-            
             try {
-              // Получаем модуль и его экспорты через TypeScript
               const moduleNode = parserServices.esTreeNodeToTSNodeMap.get(importDeclaration.source);
               const moduleSymbol = checker.getSymbolAtLocation(moduleNode);
-              
               if (moduleSymbol) {
-                const exports = checker.getExportsOfModule(moduleSymbol);
-                
+                const exports = checker.getExportsOfModule(moduleSymbol) || [];
                 const exportExists = exports.some(exp => exp.getName() === importName);
-                
-                if (!exportExists) {
-                  
-                  // Используем функцию findPossibleExports для поиска похожих экспортов
-                  const possibleExports = findPossibleExports(checker, importName, moduleSymbol);
-                  
-                  if (possibleExports.length > 0) {
-                    const suggestionsText = possibleExports
-                      .map(p => `  - ${p.name})`)
-                      .join('\n');
-                    
-                    context.report({
-                      node,
-                      messageId: 'importWithSuggestions',
-                      data: {
-                        name: importName,
-                        module: sourceValue,
-                        suggestions: suggestionsText
-                      },
-                      suggest: possibleExports.map(suggestion => ({
-                        messageId: 'suggestImport',
-                        data: { memberName: suggestion.name },
-                        fix: (fixer): TSESLint.RuleFix => fixer.replaceText(node.imported, suggestion.name),
-                      })),
-                    });
-                  } else {
-                    // Если похожих экспортов не найдено, выводим сообщение без предложений
-                    context.report({
-                      node,
-                      messageId: 'importNotFound',
-                      data: {
-                        name: importName,
-                        module: sourceValue,
-                      },
-                    });
-                  }
-                }
+                if (!exportExists) reportInvalidNamedImport(node, sourceValue);
               } else {
-                // Пробуем запасной подход через handleInvalidNamedImport
-                handleInvalidNamedImport(node, sourceValue);
+                reportInvalidNamedImport(node, sourceValue);
               }
             } catch {
-              // В случае ошибки используем запасной подход
-              handleInvalidNamedImport(node, sourceValue);
+              reportInvalidNamedImport(node, sourceValue);
             }
           }
         } catch {
@@ -251,30 +187,9 @@ export default ESLintUtils.RuleCreator.withoutDocs({
           return;
         }
         
-        // Проверка на наличие getScope в context
-        if (typeof context.getScope === 'function') {
-          // Используем ESLint API для получения области видимости
-          const scope = context.getScope();
-          const variable = scope.variables.find(v => v.name === node.name);
-          
-          if (!variable) {
-            const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
-            const symbol = checker.getSymbolAtLocation(tsNode);
-            
-            // If no symbol found and not a global, it's undefined
-            if (!symbol && !isTypescriptGlobal(node.name)) {
-              handleUndefinedIdentifier(node);
-            }
-          }
-        } else {
-          // Если getScope недоступен, используем только TypeScript для проверки
-          const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
-          const symbol = checker.getSymbolAtLocation(tsNode);
-          
-          if (!symbol && !isTypescriptGlobal(node.name)) {
-            handleUndefinedIdentifier(node);
-          }
-        }
+        const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
+        const symbol = checker.getSymbolAtLocation(tsNode);
+        if (!symbol && !isTypescriptGlobal(node.name)) handleUndefinedIdentifier(node);
       }
     };
   },

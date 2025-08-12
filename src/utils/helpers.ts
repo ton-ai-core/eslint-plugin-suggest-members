@@ -1,18 +1,17 @@
 import * as ts from 'typescript';
 
-/**
- * Computes the Jaro similarity between two strings.
- */
+/** ---------- String similarity core ---------- */
+
+/** Jaro similarity in [0,1] */
 export function jaro(s1: string, s2: string): number {
   if (s1 === s2) return 1;
-  const len1 = s1.length,
-    len2 = s2.length;
+  const len1 = s1.length, len2 = s2.length;
   if (len1 === 0 || len2 === 0) return 0;
+
   const matchDistance = Math.floor(Math.max(len1, len2) / 2) - 1;
   const s1Matches = new Array<boolean>(len1).fill(false);
   const s2Matches = new Array<boolean>(len2).fill(false);
-  let matches = 0,
-    transpositions = 0;
+  let matches = 0, transpositions = 0;
 
   for (let i = 0; i < len1; i++) {
     const start = Math.max(0, i - matchDistance);
@@ -26,7 +25,6 @@ export function jaro(s1: string, s2: string): number {
       break;
     }
   }
-
   if (matches === 0) return 0;
 
   let k = 0;
@@ -38,327 +36,219 @@ export function jaro(s1: string, s2: string): number {
   }
   transpositions /= 2;
 
-  return (
-    (matches / len1 +
-      matches / len2 +
-      (matches - transpositions) / matches) /
-    3
-  );
+  return (matches / len1 + matches / len2 + (matches - transpositions) / matches) / 3;
 }
 
-/**
- * Computes the Jaro-Winkler similarity between two strings.
- */
+/** Jaro–Winkler similarity in [0,1] with p=0.1 (standard). */
 export function jaroWinkler(s1: string, s2: string): number {
-  const jaroSim = jaro(s1, s2);
+  const jw = jaro(s1, s2);
   let prefix = 0;
-  const maxPrefix = 4;
-  for (let i = 0; i < Math.min(maxPrefix, s1.length, s2.length); i++) {
+  for (let i = 0; i < Math.min(4, s1.length, s2.length); i++) {
     if (s1[i] === s2[i]) prefix++;
     else break;
   }
-  const scalingFactor = 0.1;
-  return jaroSim + prefix * scalingFactor * (1 - jaroSim);
+  return jw + prefix * 0.1 * (1 - jw);
 }
 
-/**
- * Splits an identifier into lower-cased tokens using camelCase, underscores, spaces, or digits as separators.
- */
+/** Tokenization for identifiers: camelCase, underscores, spaces, digits. */
 export function splitIdentifier(identifier: string): string[] {
   return identifier
     .split(/(?=[A-Z])|[_\s\d]/)
-    .map((s) => s.toLowerCase())
-    .filter((s) => s.length > 0);
+    .map(s => s.toLowerCase())
+    .filter(Boolean);
 }
 
-/**
- * Normalizes a string for similarity comparison.
- * Lowercases and removes underscores and spaces.
- */
+/** Normalization: lowercasing and removing common separators and dots for paths. */
 export function normalize(str: string): string {
-  return str.toLowerCase().replace(/[_\s]/g, "");
+  return str.toLowerCase().replace(/[_\s./-]/g, '');
 }
 
-/**
- * Computes a composite similarity score between the unknown query and a candidate.
- */
+function longestCommonPrefix(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i++;
+  return i;
+}
+
+function jaccardTokens(a: string, b: string): number {
+  const A = new Set(splitIdentifier(a));
+  const B = new Set(splitIdentifier(b));
+  if (A.size === 0 && B.size === 0) return 1;
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  for (const t of A) if (B.has(t)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+
+/** Composite similarity score S ∈ [0,1] with provable bounds. */
+export function compositeScore(unknown: string, candidate: string): number {
+  const A = normalize(unknown);
+  const B = normalize(candidate);
+  const jw = jaroWinkler(A, B);
+  const tok = jaccardTokens(unknown, candidate);
+  const cont = A.length > 0 && B.length > 0 && (A.includes(B) || B.includes(A)) ? 1 : 0;
+  const pref = Math.min(longestCommonPrefix(A, B), 4) / 4;
+  const base = 0.5 * jw + 0.3 * tok + 0.1 * cont + 0.1 * pref;
+
+  // Length penalty: at most 0.15, linear by excess length
+  const lengthPenalty = Math.min(0.15, Math.max(0, candidate.length - unknown.length) * 0.01);
+
+  const s = base - lengthPenalty;
+  return s <= 0 ? 0 : s >= 1 ? 1 : s;
+}
+
+/** Backward compatibility alias (previous name used in repo). */
 export function computeCompositeScore(unknown: string, candidate: string): number {
-  const normQuery = normalize(unknown);
-  const normCandidate = normalize(candidate);
-
-  // Base similarity from Jaro-Winkler
-  const baseSimilarity = jaroWinkler(normQuery, normCandidate); // between 0 and 1
-
-  // Exact match bonus
-  const exactBonus = normQuery === normCandidate ? 0.3 : 0;
-
-  // Containment bonus
-  const contains =
-    normCandidate.includes(normQuery) || normQuery.includes(normCandidate);
-  const containmentBonus = contains ? 0.2 : 0;
-
-  // Token bonus
-  const tokensQuery = new Set(splitIdentifier(unknown));
-  const tokensCandidate = new Set(splitIdentifier(candidate));
-  let tokenBonus = 0;
-  let tokensMatched = 0;
-
-  tokensQuery.forEach((tq) => {
-    tokensCandidate.forEach((tc) => {
-      if (tq === tc) {
-        tokenBonus += 0.2;
-        tokensMatched++;
-      } else if (tq.startsWith(tc) || tc.startsWith(tq)) {
-        tokenBonus += 0.1;
-        tokensMatched++;
-      }
-    });
-  });
-
-  // Extra bonus if at least 2 distinct tokens match
-  if (tokensMatched >= 2) {
-    tokenBonus += 0.2;
-  }
-
-  // Length penalty: subtract 0.01 per extra character in candidate
-  const lengthPenalty = Math.max(0, candidate.length - unknown.length) * 0.01;
-
-  return baseSimilarity + exactBonus + containmentBonus + tokenBonus - lengthPenalty;
+  return compositeScore(unknown, candidate);
 }
 
-/**
- * Gets a formatted list of members with their signatures and types
- */
+/** ---------- TypeScript helpers ---------- */
+
+/** Merge properties across union types using apparentType. */
+function getAllProperties(objectType: ts.Type, checker: ts.TypeChecker): ts.Symbol[] {
+  const seen = new Map<string, ts.Symbol>();
+
+  const addProps = (t: ts.Type): void => {
+    checker.getApparentType(t).getProperties().forEach(sym => {
+      const name = sym.getName();
+      if (!seen.has(name)) seen.set(name, sym);
+    });
+  };
+
+  if ((objectType.flags & ts.TypeFlags.Union) !== 0) {
+    for (const t of (objectType as ts.UnionType).types) addProps(t);
+  } else {
+    addProps(objectType);
+  }
+  return Array.from(seen.values());
+}
+
+/** Formatted member names with signatures/types, sorted by composite score. */
 export function getFormattedMembersList(
   objectType: ts.Type,
   checker: ts.TypeChecker,
   tsNode: ts.Node,
   requestedName: string
 ): string[] {
-  // Minimum similarity score threshold
   const MIN_SCORE = 0.3;
-  const result: { 
-    name: string; 
-    displayName: string; 
-    score: number; 
-  }[] = [];
+  const items: { display: string; name: string; score: number }[] = [];
 
-  // Process all properties of the object type
-  objectType.getProperties().forEach(property => {
+  for (const property of getAllProperties(objectType, checker)) {
     try {
-      let displayName = property.name;
-      
-      // Check property type through declarations
-      if (property.valueDeclaration) {
-        const propertyType = checker.getTypeOfSymbolAtLocation(property, tsNode);
-        
-        // Check if it's a method or property
-        const isMethod = propertyType.getCallSignatures().length > 0;
-        
-        // If it's a method, add its signature
-        if (isMethod) {
-          const signatures = propertyType.getCallSignatures();
-          if (signatures.length > 0) {
-            const signature = signatures[0];
-            const params = signature.getParameters().map(param => {
-              const paramName = param.getName();
-              const paramType = checker.getTypeOfSymbolAtLocation(param, property.valueDeclaration || tsNode);
-              return `${paramName}: ${checker.typeToString(paramType)}`;
-            }).join(', ');
-            
-            const returnType = signature.getReturnType();
-            const returnTypeString = checker.typeToString(returnType);
-            
-            displayName = `${property.name}(${params})${returnTypeString !== 'void' ? `: ${returnTypeString}` : ''}`;
-          } else {
-            displayName = `${property.name}()`;
-          }
-        } else {
-          // If it's a property, add its type
-          displayName = `${property.name}: ${checker.typeToString(propertyType)}`;
-        }
+      let displayName = property.getName();
+      const propertyType = checker.getTypeOfSymbolAtLocation(property, tsNode);
+
+      if (propertyType.getCallSignatures().length > 0) {
+        const sig = propertyType.getCallSignatures()[0];
+        const params = sig.getParameters().map(p => {
+          const pt = checker.getTypeOfSymbolAtLocation(p, property.valueDeclaration ?? tsNode);
+          return `${p.getName()}: ${checker.typeToString(pt)}`;
+        }).join(', ');
+        const ret = checker.typeToString(sig.getReturnType());
+        displayName = `${displayName}(${params})${ret !== 'void' ? `: ${ret}` : ''}`;
       } else {
-        // If no declaration, just use the name
-        displayName = property.name;
+        displayName = `${displayName}: ${checker.typeToString(propertyType)}`;
       }
-      
-      // Calculate similarity with requested name
-      const score = computeCompositeScore(requestedName, property.name);
-      
-      result.push({
-        name: property.name,
-        displayName,
-        score
-      });
+
+      const score = compositeScore(requestedName, property.getName());
+      if (score >= MIN_SCORE) items.push({ display: displayName, name: property.getName(), score });
     } catch {
-      // In case of error, add just the property name
-      result.push({
-        name: property.name,
-        displayName: property.name,
-        score: computeCompositeScore(requestedName, property.name)
-      });
+      const name = property.getName();
+      const score = compositeScore(requestedName, name);
+      if (score >= MIN_SCORE) items.push({ display: name, name, score });
     }
-  });
-  
-  // Sort by similarity and take only the top 5 items
-  result.sort((a, b) => b.score - a.score);
-  
-  // Get the sorted list of members by relevance and limit it
-  return result
-    .filter(item => item.score >= MIN_SCORE)
-    .slice(0, 5)
-    .map(item => item.displayName);
+  }
+
+  items.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return items.slice(0, 5).map(i => i.display);
 }
 
-/**
- * Finds possible exports from a module that match the requested import
- */
+/** Possible exports ordered by composite score. */
 export function findPossibleExports(
   checker: ts.TypeChecker,
   requestedName: string,
   moduleSymbol: ts.Symbol | undefined,
 ): { name: string; score: number }[] {
-  // Включаем отладочный вывод
-  
-  if (!moduleSymbol) {
-    return [];
-  }
-
+  if (!moduleSymbol) return [];
   try {
-    const exports = checker.getExportsOfModule(moduleSymbol) || [];
-    
-    const results: { name: string; score: number }[] = [];
     const MIN_SCORE = 0.3;
+    const exports = checker.getExportsOfModule(moduleSymbol) ?? [];
+    const results = exports
+      .map(exp => ({ name: exp.getName(), score: compositeScore(requestedName, exp.getName()) }))
+      .filter(x => x.score >= MIN_SCORE);
 
-    // Собираем все экспорты и вычисляем их оценки похожести
-    exports.forEach(exportSymbol => {
-      const exportName = exportSymbol.getName();
-      const score = computeCompositeScore(requestedName, exportName);
-      
-      if (score >= MIN_SCORE) {
-        results.push({ name: exportName, score });
-      }
-    });
-
-    // Сортируем результаты по оценке
-    const sortedResults = results.sort((a, b) => b.score - a.score);
-    
-    // Берем только 5 лучших результатов
-    const limitedResults = sortedResults.slice(0, 5);
-    
-    return limitedResults;
+    results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    return results.slice(0, 5);
   } catch {
     return [];
   }
 }
 
-/**
- * Gets locally available symbols that match an identifier
- */
+/** Similar local symbols by composite score. */
 export function findSimilarLocalSymbols(
   checker: ts.TypeChecker,
   tsNode: ts.Node,
   name: string,
 ): { name: string; score: number }[] {
-  const results: { name: string; score: number }[] = [];
   const MIN_SCORE = 0.3;
+  const push = (arr: { name: string; score: number }[], n: string): void => {
+    const s = compositeScore(name, n);
+    if (s >= MIN_SCORE) arr.push({ name: n, score: s });
+  };
 
-  // Find symbols in local scope with various symbol flags
+  const results: { name: string; score: number }[] = [];
+
   const locals = checker.getSymbolsInScope(
-    tsNode, 
-    ts.SymbolFlags.Variable | 
-    ts.SymbolFlags.Function | 
-    ts.SymbolFlags.Class | 
-    ts.SymbolFlags.Enum | 
-    ts.SymbolFlags.TypeAlias | 
+    tsNode,
+    ts.SymbolFlags.Variable |
+    ts.SymbolFlags.Function |
+    ts.SymbolFlags.Class |
+    ts.SymbolFlags.Enum |
+    ts.SymbolFlags.TypeAlias |
     ts.SymbolFlags.Interface
   );
+  locals.forEach(sym => push(results, sym.getName()));
 
-  // Add found local symbols
-  locals.forEach(symbol => {
-    const symbolName = symbol.getName();
-    const score = computeCompositeScore(name, symbolName);
-    
-    if (score >= MIN_SCORE) {
-      results.push({ name: symbolName, score });
-    }
-  });
-
-  // Also search for variables in the current scope through the source file
-  const sourceFile = tsNode.getSourceFile();
-  if (sourceFile) {
-    // Check all variable declarations in the file
-    const variableNames = new Set<string>();
-    sourceFile.forEachChild(node => {
+  const sf = tsNode.getSourceFile();
+  if (sf) {
+    sf.forEachChild(node => {
       if (ts.isVariableStatement(node)) {
         node.declarationList.declarations.forEach(decl => {
-          if (ts.isIdentifier(decl.name)) {
-            const declName = decl.name.text;
-            variableNames.add(declName);
-            
-            const score = computeCompositeScore(name, declName);
-            if (score >= MIN_SCORE) {
-              results.push({ name: declName, score });
-            }
-          }
+          if (ts.isIdentifier(decl.name)) push(results, decl.name.text);
         });
-      }
-      else if (ts.isFunctionDeclaration(node) && node.name) {
-        const funcName = node.name.text;
-        variableNames.add(funcName);
-        
-        const score = computeCompositeScore(name, funcName);
-        if (score >= MIN_SCORE) {
-          results.push({ name: funcName, score });
-        }
+      } else if (ts.isFunctionDeclaration(node) && node.name) {
+        push(results, node.name.text);
       }
     });
   }
 
-  // Additionally search in global space
-  const globalSymbols = checker.getSymbolsInScope(
-    tsNode, 
-    ts.SymbolFlags.Variable | 
-    ts.SymbolFlags.Function | 
-    ts.SymbolFlags.Class | 
-    ts.SymbolFlags.Alias
+  const globals = checker.getSymbolsInScope(
+    tsNode,
+    ts.SymbolFlags.Variable | ts.SymbolFlags.Function | ts.SymbolFlags.Class | ts.SymbolFlags.Alias
   );
-  
-  globalSymbols.forEach(symbol => {
-    if (!symbol.declarations || symbol.declarations.length === 0) return;
-    
-    // Check only global symbols
-    if (symbol.declarations[0].getSourceFile() !== tsNode.getSourceFile()) {
-      const symbolName = symbol.getName();
-      const score = computeCompositeScore(name, symbolName);
-      
-      if (score >= MIN_SCORE) {
-        results.push({ name: symbolName, score });
-      }
-    }
+  globals.forEach(sym => {
+    if (!sym.declarations || sym.declarations.length === 0) return;
+    if (sym.declarations[0].getSourceFile() !== tsNode.getSourceFile()) push(results, sym.getName());
   });
 
-  // Remove duplicates and sort by score
-  const uniqueResults = results.filter((item, index, self) => 
-    index === self.findIndex(t => t.name === item.name)
-  );
-  
-  // Sort by score and limit
-  return uniqueResults.sort((a, b) => b.score - a.score).slice(0, 5);
+  const uniq = new Map<string, number>();
+  for (const r of results) {
+    if (!uniq.has(r.name) || (uniq.get(r.name)! < r.score)) uniq.set(r.name, r.score);
+  }
+  return Array.from(uniq, ([name, score]) => ({ name, score }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 5);
 }
 
-/**
- * Checks if the name is a TypeScript global name
- */
+/** Minimal TS globals allow-list. */
 export function isTypescriptGlobal(name: string): boolean {
   const globals = [
-    'Object', 'Function', 'String', 'Boolean', 'Number', 'Array', 'Date', 'RegExp',
-    'Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError',
-    'URIError', 'JSON', 'Math', 'console', 'Promise', 'Map', 'Set', 'WeakMap', 'WeakSet',
-    'Symbol', 'Proxy', 'Reflect', 'Intl', 'setTimeout', 'clearTimeout', 'setInterval',
-    'clearInterval', 'setImmediate', 'clearImmediate', 'queueMicrotask', 'global',
-    'process', 'require', 'module', 'exports', '__dirname', '__filename'
+    'Object','Function','String','Boolean','Number','Array','Date','RegExp',
+    'Error','EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
+    'URIError','JSON','Math','console','Promise','Map','Set','WeakMap','WeakSet',
+    'Symbol','Proxy','Reflect','Intl','setTimeout','clearTimeout','setInterval',
+    'clearInterval','setImmediate','clearImmediate','queueMicrotask','global',
+    'process','require','module','exports','__dirname','__filename'
   ];
-  
   return globals.includes(name);
-} 
+}

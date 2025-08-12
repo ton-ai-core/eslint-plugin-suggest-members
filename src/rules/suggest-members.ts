@@ -1,5 +1,4 @@
 import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
-// import * as ts from 'typescript';
 import { getFormattedMembersList } from '../utils/helpers';
 
 export default ESLintUtils.RuleCreator.withoutDocs({
@@ -19,7 +18,6 @@ export default ESLintUtils.RuleCreator.withoutDocs({
   defaultOptions: [],
 
   create(context) {
-    // Get TypeScript services
     const parserServices = ESLintUtils.getParserServices(context);
     const checker = parserServices.program.getTypeChecker();
 
