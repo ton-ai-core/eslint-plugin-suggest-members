@@ -24,7 +24,6 @@ export default ESLintUtils.RuleCreator.withoutDocs({
 
   create(context) {
     const { program } = ESLintUtils.getParserServices(context);
-    const exts = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs','.json','.css','.scss','.sass']);
 
     /**
      * Finds similar module paths in the file system
@@ -141,6 +140,79 @@ export default ESLintUtils.RuleCreator.withoutDocs({
       return null;
     }
 
+    /** Check path existence allowing any file extension and index files in directories */
+    function existsWithAnyExtension(absPath: string): boolean {
+      try {
+        if (fs.existsSync(absPath)) return true;
+        const dir = path.dirname(absPath);
+        const base = path.basename(absPath);
+        if (!fs.existsSync(dir)) return false;
+        for (const entry of fs.readdirSync(dir)) {
+          if (entry === base) return true;
+          if (entry.startsWith(base + '.')) return true;
+          const entryPath = path.join(dir, entry);
+          if (entry === base && fs.statSync(entryPath).isDirectory()) {
+            // directory with same base
+            try {
+              for (const f of fs.readdirSync(entryPath)) {
+                if (f.startsWith('index.')) return true;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore */ }
+      return false;
+    }
+
+    /** Heuristic project root: look for package.json or tsconfig.json upwards */
+    function findProjectRoot(startDir: string): string | null {
+      let cur = startDir;
+      while (cur !== path.dirname(cur)) {
+        if (fs.existsSync(path.join(cur, 'package.json')) || fs.existsSync(path.join(cur, 'tsconfig.json'))) {
+          return cur;
+        }
+        cur = path.dirname(cur);
+      }
+      return null;
+    }
+
+    /** Try resolve via tsconfig paths mapping (basic support) */
+    function tryResolveViaTsPaths(specifier: string): string | null {
+      try {
+        const configPath = ts.findConfigFile(context.getCwd?.() ?? process.cwd(), ts.sys.fileExists, 'tsconfig.json');
+        if (!configPath) return null;
+        const cfgJson = ts.readConfigFile(configPath, ts.sys.readFile);
+        if (!cfgJson.config) return null;
+        const { options } = ts.parseJsonConfigFileContent(cfgJson.config, ts.sys, path.dirname(configPath));
+        const baseUrl = options.baseUrl ? path.resolve(path.dirname(configPath), options.baseUrl) : undefined;
+        const paths = options.paths as Record<string, string[]> | undefined;
+        if (!baseUrl || !paths) return null;
+
+        for (const [pattern, targets] of Object.entries(paths)) {
+          const starIdx = pattern.indexOf('*');
+          if (starIdx === -1) {
+            if (pattern === specifier) {
+              for (const t of targets) {
+                const abs = path.resolve(baseUrl, t);
+                if (fs.existsSync(abs)) return abs;
+              }
+            }
+          } else {
+            const [prefix, suffix] = [pattern.slice(0, starIdx), pattern.slice(starIdx + 1)];
+            if (specifier.startsWith(prefix) && specifier.endsWith(suffix)) {
+              const middle = specifier.slice(prefix.length, specifier.length - suffix.length);
+              for (const t of targets) {
+                const replaced = t.replace('*', middle);
+                const abs = path.resolve(baseUrl, replaced);
+                if (fs.existsSync(abs)) return abs;
+              }
+            }
+          }
+        }
+      } catch { /* ignore */ }
+      return null;
+    }
+
             /**
      * Checks if a module is a Node.js built-in module
      */
@@ -154,29 +226,30 @@ export default ESLintUtils.RuleCreator.withoutDocs({
     function isModuleNotFound(modulePath: string, currentFilePath: string): boolean {
       if (isBuiltinModule(modulePath)) return false;
       if (modulePath.startsWith('node:')) return !isBuiltinModule(modulePath.slice(5));
-      // Quick FS short-circuit for relative imports, including non-TS assets like .css
+      // Quick FS short-circuit for relative imports and assets
       try {
         if (modulePath.startsWith('./') || modulePath.startsWith('../')) {
           const currentDir = path.dirname(currentFilePath);
           const abs = path.resolve(currentDir, modulePath);
-          if (fs.existsSync(abs)) return false;
-          const hasExt = path.extname(modulePath) !== '';
-          if (!hasExt) {
-            for (const ext of exts) {
-              if (fs.existsSync(abs + ext)) return false;
-            }
-          }
+          if (existsWithAnyExtension(abs)) return false;
         } else {
           // Bare specifier: check in nearest node_modules for the exact subpath (handles CSS/assets)
           const nm = findNodeModules(path.dirname(currentFilePath));
           if (nm) {
             const abs = path.join(nm, modulePath);
-            if (fs.existsSync(abs)) return false;
-            const hasExt = path.extname(modulePath) !== '';
-            if (!hasExt) {
-              for (const ext of exts) {
-                if (fs.existsSync(abs + ext)) return false;
-              }
+            if (existsWithAnyExtension(abs)) return false;
+          }
+          // Try resolve via tsconfig paths mapping
+          const mapped = tryResolveViaTsPaths(modulePath);
+          if (mapped && existsWithAnyExtension(mapped)) return false;
+          // Common alias '@/' -> <projectRoot>/src or <projectRoot>
+          if (modulePath.startsWith('@/')) {
+            const projectRoot = findProjectRoot(path.dirname(currentFilePath));
+            if (projectRoot) {
+              const rel = modulePath.slice(2);
+              const abs1 = path.resolve(projectRoot, 'src', rel);
+              const abs2 = path.resolve(projectRoot, rel);
+              if (existsWithAnyExtension(abs1) || existsWithAnyExtension(abs2)) return false;
             }
           }
         }
