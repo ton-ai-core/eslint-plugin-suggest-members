@@ -166,6 +166,19 @@ export default ESLintUtils.RuleCreator.withoutDocs({
               if (fs.existsSync(abs + ext)) return false;
             }
           }
+        } else {
+          // Bare specifier: check in nearest node_modules for the exact subpath (handles CSS/assets)
+          const nm = findNodeModules(path.dirname(currentFilePath));
+          if (nm) {
+            const abs = path.join(nm, modulePath);
+            if (fs.existsSync(abs)) return false;
+            const hasExt = path.extname(modulePath) !== '';
+            if (!hasExt) {
+              for (const ext of exts) {
+                if (fs.existsSync(abs + ext)) return false;
+              }
+            }
+          }
         }
       } catch { /* ignore */ }
       try {
