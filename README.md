@@ -52,7 +52,8 @@ export default [
     },
     rules: {
       "suggest-members/suggest-members": "error",
-      "suggest-members/suggest-imports": "error"
+      "suggest-members/suggest-imports": "error",
+      "suggest-members/suggest-module-paths": "error"
     }
   }
 ];
@@ -76,7 +77,8 @@ module.exports = {
   plugins: ['@typescript-eslint', 'suggest-members'],
   rules: {
     'suggest-members/suggest-members': 'error',
-    'suggest-members/suggest-imports': 'error'
+    'suggest-members/suggest-imports': 'error',
+    'suggest-members/suggest-module-paths': 'error'
   }
 };
 ```
