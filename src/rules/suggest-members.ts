@@ -53,6 +53,8 @@ export default ESLintUtils.RuleCreator.withoutDocs({
           objectType = checker.getNonNullableType(objectType);
         }
 
+        objectType = checker.getNonNullableType(objectType);
+
         const symbol = checker.getPropertyOfType(objectType, propertyName);
         
         if (!symbol) {
