@@ -42,10 +42,18 @@ export default ESLintUtils.RuleCreator.withoutDocs({
         
         // Convert to TS node
         const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node.object);
-        const objectType = checker.getTypeAtLocation(tsNode);
-        
-        // Check if property exists on object
-        const symbol = objectType.getProperty(propertyName);
+        let objectType = checker.getTypeAtLocation(tsNode);
+
+        const isOptionalAccess =
+          node.optional === true ||
+          node.parent?.type === 'ChainExpression' ||
+          node.object.type === 'ChainExpression';
+
+        if (isOptionalAccess) {
+          objectType = checker.getNonNullableType(objectType);
+        }
+
+        const symbol = checker.getPropertyOfType(objectType, propertyName);
         
         if (!symbol) {
           try {
