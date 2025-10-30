@@ -13,7 +13,8 @@
 	},
 	"include": [
 		"src/**/*.ts",
-		"test/**/*.ts"
+		"test/**/*.ts",
+		"test-manual-suggest-exports.ts"
 	],
 	"exclude": [
 		"node_modules",

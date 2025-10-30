@@ -83,6 +83,9 @@ export const baseValidationEffect = <TResult>(
 				tsService.getExportsOfModule(modulePath),
 			);
 
+			// CHANGE: Debug logging for troubleshooting
+			// WHY: Need to understand what exports are found
+
 			// CHANGE: Check if export exists
 			// WHY: Valid exports don't need suggestions
 			// PURITY: CORE

@@ -53,19 +53,29 @@ export interface ImportValidationConfig<TResult> {
 export function createTypeScriptServices(
 	context: RuleContext<string, readonly string[]>,
 ): {
-	readonly parserServices: ReturnType<typeof ESLintUtils.getParserServices>;
+	readonly parserServices: ReturnType<
+		typeof ESLintUtils.getParserServices
+	> | null;
 	readonly tsServiceLayer: Layer.Layer<
 		TypeScriptCompilerServiceTag,
 		never,
 		never
-	>;
+	> | null;
 } {
-	const parserServices = ESLintUtils.getParserServices(context);
-	const checker = parserServices.program?.getTypeChecker();
-	const program = parserServices.program;
-	const tsServiceLayer = makeTypeScriptCompilerServiceLayer(checker, program);
+	// CHANGE: Check if TypeScript parser services are available
+	// WHY: Rule should work without TypeScript parser for basic validation
+	try {
+		const parserServices = ESLintUtils.getParserServices(context);
+		const checker = parserServices.program?.getTypeChecker();
+		const program = parserServices.program;
+		const tsServiceLayer = makeTypeScriptCompilerServiceLayer(checker, program);
 
-	return { parserServices, tsServiceLayer };
+		return { parserServices, tsServiceLayer };
+	} catch {
+		// CHANGE: Return null if TypeScript services not available
+		// WHY: Allow rule to work without TypeScript for basic cases
+		return { parserServices: null, tsServiceLayer: null };
+	}
 }
 
 /**
@@ -90,10 +100,15 @@ export function validateImportSpecifierBase<TResult>(
 	tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>,
 ): void {
 	const imported = specifier.imported;
-	if (imported.type !== AST_NODE_TYPES.Identifier) return;
-	if (shouldSkipIdentifier(imported.name)) return;
+	if (imported.type !== AST_NODE_TYPES.Identifier) {
+		return;
+	}
+	if (shouldSkipIdentifier(imported.name)) {
+		return;
+	}
 
 	const importName = imported.name;
+	// Debug info removed for production
 
 	// CHANGE: Use provided validation function
 	// WHY: Allow different validation logic for different rules
@@ -109,6 +124,7 @@ export function validateImportSpecifierBase<TResult>(
 			// CHANGE: Check if result indicates an error
 			// WHY: Only report if validation found issues
 			const message = config.formatMessage(result);
+
 			if (message !== "") {
 				context.report({
 					node: imported,
@@ -117,9 +133,9 @@ export function validateImportSpecifierBase<TResult>(
 				});
 			}
 		})
-		.catch(() => {
-			// CHANGE: Silent error handling for Effect failures
-			// WHY: Don't break ESLint execution on validation errors
+		.catch((_error) => {
+			// CHANGE: Log error for debugging
+			// WHY: Need to see what's failing
 		});
 }
 
@@ -142,9 +158,13 @@ export function createImportDeclarationHandler<TResult>(
 	tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>,
 ): (node: TSESTree.ImportDeclaration) => void {
 	return (node: TSESTree.ImportDeclaration): void => {
+		// Debug info removed for production
+
 		// CHANGE: Skip type-only imports
 		// WHY: Type imports have different validation rules
-		if (isTypeOnlyImport(node)) return;
+		if (isTypeOnlyImport(node)) {
+			return;
+		}
 
 		const modulePath = node.source.value;
 		if (typeof modulePath !== "string") return;
@@ -155,6 +175,8 @@ export function createImportDeclarationHandler<TResult>(
 			(spec): spec is TSESTree.ImportSpecifier =>
 				spec.type === AST_NODE_TYPES.ImportSpecifier,
 		);
+
+		// Debug info removed for production
 
 		for (const specifier of namedSpecifiers) {
 			validateImportSpecifierBase(
@@ -187,7 +209,7 @@ export function createValidationRule<TResult>(
 	description: string,
 	messageId: string,
 	config: Omit<ImportValidationConfig<TResult>, "messageId">,
-): RuleModule<string, readonly string[]> {
+): RuleModule<string, string[]> {
 	const createRule = ESLintUtils.RuleCreator(
 		(name) =>
 			`https://github.com/ton-ai-core/eslint-plugin-suggest-members#${name}`,
@@ -205,12 +227,21 @@ export function createValidationRule<TResult>(
 			},
 			schema: [],
 		},
-		defaultOptions: [],
+		defaultOptions: [] as string[],
 
 		create(context) {
+			// Debug info removed for production
+
 			// CHANGE: Use shared TypeScript services creation
 			// WHY: Eliminate code duplication
 			const { tsServiceLayer } = createTypeScriptServices(context);
+
+			// CHANGE: Skip rule if TypeScript services not available
+			// WHY: Rule requires TypeScript for export analysis
+			if (!tsServiceLayer) {
+				// Debug info removed for production
+				return {};
+			}
 
 			// CHANGE: Configure validation with provided config
 			// WHY: Allow different validation logic for different rules

@@ -12,6 +12,10 @@ import {
 	makeModuleNotFoundError,
 } from "../effects/index.js";
 import {
+	getNodeBuiltinExports,
+	isNodeBuiltinModule,
+} from "./node-builtin-exports.js";
+import {
 	createGetSymbolAtLocationEffect,
 	createGetTypeAtLocationEffect,
 } from "./shared/typescript-effect-factory.js";
@@ -95,13 +99,22 @@ export interface TypeScriptCompilerService {
 // Moved to shared/typescript-effect-factory.ts to eliminate duplication
 
 /**
- * Creates module exports effect
+ * Creates module exports effect with Node.js built-in support
  */
 const createGetExportsOfModuleEffect =
 	(checker: ts.TypeChecker | null, program: ts.Program | null) =>
 	(
 		modulePath: string,
 	): Effect.Effect<readonly string[], TypeScriptServiceError> => {
+		// CHANGE: Handle Node.js built-in modules first
+		// WHY: Built-ins don't have source files but have known exports
+		if (isNodeBuiltinModule(modulePath)) {
+			const exports = getNodeBuiltinExports(modulePath);
+			if (exports) {
+				return Effect.succeed(exports);
+			}
+		}
+
 		if (checker === null || program === null) {
 			return Effect.fail(makeCheckerNotAvailableError());
 		}

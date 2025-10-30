@@ -1,0 +1,16 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"types": ["jest", "node"],
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"moduleResolution": "node",
+		"resolveJsonModule": true
+	},
+	"include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "../src/**/*.ts"],
+	"exclude": ["../dist", "../node_modules"]
+}
