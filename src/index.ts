@@ -5,6 +5,7 @@
 
 import { PLUGIN_METADATA } from "./core/metadata/index.js";
 import {
+	suggestExportsRule,
 	suggestImportsRule,
 	suggestMembersRule,
 	suggestModulePathsRule,
@@ -16,8 +17,9 @@ import {
  * @purity SHELL
  */
 const rules = {
-	"suggest-members": suggestMembersRule,
+	"suggest-exports": suggestExportsRule,
 	"suggest-imports": suggestImportsRule,
+	"suggest-members": suggestMembersRule,
 	"suggest-module-paths": suggestModulePathsRule,
 };
 

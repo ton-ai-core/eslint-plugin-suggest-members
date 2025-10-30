@@ -5,6 +5,13 @@ An ESLint plugin that suggests corrections for typos in properties, variables, a
 ## Examples
 
 ```ts
+// Export errors
+Module 'react' does not export 'useStae'. Did you mean:
+  - useState
+  - useRef
+  - useEffect
+  - useMemo
+
 // Member errors
 Property "get1Item" does not exist on type "Storage". Did you mean:
   - getItem(key: string): string | null
@@ -44,8 +51,9 @@ export default [{
   files: ["**/*.ts"],
   plugins: { "suggest-members": suggestMembers },
   rules: {
+    "suggest-members/suggest-exports": "error",
+    "suggest-members/suggest-imports": "error", 
     "suggest-members/suggest-members": "error",
-    "suggest-members/suggest-imports": "error",
     "suggest-members/suggest-module-paths": "error"
   }
 }];

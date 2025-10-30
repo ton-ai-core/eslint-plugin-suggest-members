@@ -40,6 +40,7 @@ export {
 export { findSimilarCandidates } from "./suggestion/engine.js";
 // Types
 export type {
+	ExportValidationResult,
 	ImportValidationResult,
 	MemberValidationResult,
 	ModulePathValidationResult,
@@ -51,10 +52,12 @@ export type {
 export {
 	MAX_SUGGESTIONS,
 	MIN_SIMILARITY_SCORE,
+	makeExportNotFoundResult,
 	makeImportNotFoundResult,
 	makeInvalidMemberResult,
 	makeModuleNotFoundResult,
 	makeSimilarityScore,
+	makeValidExportResult,
 	makeValidImportResult,
 	makeValidMemberResult,
 	makeValidModuleResult,

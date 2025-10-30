@@ -160,3 +160,53 @@ export const makeModuleNotFoundResult = (
 	suggestions,
 	node,
 });
+
+/**
+ * Export validation result with typed errors
+ *
+ * @pure true
+ * @purity CORE
+ * @invariant Valid | ExportNotFound (exhaustive)
+ */
+export type ExportValidationResult =
+	| { readonly _tag: "Valid" }
+	| {
+			readonly _tag: "ExportNotFound";
+			readonly exportName: string;
+			readonly modulePath: string;
+			readonly suggestions: readonly SuggestionWithScore[];
+			readonly node: object; // ESLint node type
+	  };
+
+/**
+ * Creates valid export result
+ *
+ * @pure true
+ * @purity CORE
+ * @complexity O(1)
+ * @throws Never
+ */
+export const makeValidExportResult = (): ExportValidationResult => ({
+	_tag: "Valid",
+});
+
+/**
+ * Creates export not found result
+ *
+ * @pure true
+ * @purity CORE
+ * @complexity O(1)
+ * @throws Never
+ */
+export const makeExportNotFoundResult = (
+	exportName: string,
+	modulePath: string,
+	suggestions: readonly SuggestionWithScore[],
+	node: object,
+): ExportValidationResult => ({
+	_tag: "ExportNotFound",
+	exportName,
+	modulePath,
+	suggestions,
+	node,
+});

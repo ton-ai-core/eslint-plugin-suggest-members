@@ -3,18 +3,16 @@
 // PURITY: SHELL (CORE + SHELL composition)
 // REF: system-promt.md - функциональная архитектура с Effect-TS
 
-import { Effect, pipe } from "effect";
+import type { Effect } from "effect";
 import { match } from "ts-pattern";
 import type { ImportValidationResult } from "../../core/index.js";
 import {
-	findSimilarCandidatesEffect,
-	isTypeOnlyImport,
 	makeImportNotFoundResult,
 	makeValidImportResult,
-	shouldSkipIdentifier,
 } from "../../core/index.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
-import { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
+import type { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
+import { baseValidationEffect } from "./validation-base-effect.js";
 
 /**
  * Validates import specifier with Effect-based composition
@@ -40,65 +38,17 @@ export const validateImportSpecifierEffect = (
 	ImportValidationResult,
 	TypeScriptServiceError,
 	TypeScriptCompilerServiceTag
-> =>
-	pipe(
-		Effect.gen(function* (_) {
-			// CHANGE: Skip type-only imports using pure predicate
-			// WHY: Type-only imports have different validation rules
-			// PURITY: CORE
-			if (isTypeOnlyImport(node)) {
-				return makeValidImportResult();
-			}
+> => {
+	// CHANGE: Use base validation with import-specific configuration
+	// WHY: Eliminate code duplication with export validation
+	const config = {
+		makeValidResult: makeValidImportResult,
+		makeInvalidResult: makeImportNotFoundResult,
+		isValidCandidate: isValidImportCandidate,
+	};
 
-			// CHANGE: Skip identifiers that should not be validated
-			// WHY: Some identifiers are special cases
-			// PURITY: CORE
-			if (shouldSkipIdentifier(importName)) {
-				return makeValidImportResult();
-			}
-
-			// CHANGE: Get TypeScript service from context
-			// WHY: Dependency injection pattern
-			// PURITY: SHELL
-			const tsService = yield* _(TypeScriptCompilerServiceTag);
-
-			// CHANGE: Get all exports from module
-			// WHY: Need available exports for validation and suggestions
-			// PURITY: SHELL
-			const exports = yield* _(tsService.getExportsOfModule(modulePath));
-
-			// CHANGE: Check if import exists
-			// WHY: Valid imports don't need suggestions
-			// PURITY: CORE
-			if (exports.includes(importName)) {
-				return makeValidImportResult();
-			}
-
-			// CHANGE: Filter valid candidates using pure predicate
-			// WHY: Remove invalid suggestions before similarity matching
-			// PURITY: CORE
-			const validCandidates = exports.filter((candidate) =>
-				isValidImportCandidate(candidate, importName),
-			);
-
-			// CHANGE: Find similar candidates using pure Effect
-			// WHY: Separate similarity computation from validation logic
-			// PURITY: CORE
-			const suggestions = yield* _(
-				findSimilarCandidatesEffect(importName, validCandidates),
-			);
-
-			// CHANGE: Return typed validation result
-			// WHY: Type-safe error handling without exceptions
-			// PURITY: CORE
-			return makeImportNotFoundResult(
-				importName,
-				modulePath,
-				suggestions,
-				node,
-			);
-		}),
-	);
+	return baseValidationEffect(node, importName, modulePath, config);
+};
 
 /**
  * Checks if module has exports
