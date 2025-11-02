@@ -40,6 +40,10 @@ export function formatSuggestionMessage(
 /**
  * Common suggestion list formatter with multi-line bullet list
  *
+ * CHANGE: Added type signature display for methods and properties
+ * WHY: Help developers understand what they're importing/using
+ * FORMAT: "  - name: signature" or "  - name" if no signature
+ *
  * @purity CORE
  * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  */
@@ -47,7 +51,16 @@ const formatSuggestionList = (
 	suggestions: readonly SuggestionWithScore[],
 ): string => {
 	const topSuggestions = suggestions.slice(0, MAX_SUGGESTIONS);
-	return topSuggestions.map((s) => `  - ${s.name}`).join("\n");
+	return topSuggestions
+		.map((s) => {
+			// CHANGE: Include type signature if available
+			// WHY: Provides context about what the suggested export/member is
+			if (s.signature !== undefined && s.signature.length > 0) {
+				return `  - ${s.name}: ${s.signature}`;
+			}
+			return `  - ${s.name}`;
+		})
+		.join("\n");
 };
 
 /**

@@ -82,6 +82,22 @@ export interface TypeScriptCompilerService {
 		modulePath: string,
 		exportName: string,
 	) => Effect.Effect<boolean, TypeScriptServiceError>;
+
+	/**
+	 * Gets type signature string for an export from a module
+	 *
+	 * CHANGE: Added type signature extraction
+	 * WHY: Display method/property types in suggestions for better context
+	 *
+	 * @purity SHELL
+	 * @effect TypeScript Compiler API
+	 * @complexity O(n) where n = number of exports
+	 * @returns Type signature (e.g., "(str: string) => number") or undefined if not found
+	 */
+	readonly getExportTypeSignature: (
+		modulePath: string,
+		exportName: string,
+	) => Effect.Effect<string | undefined, TypeScriptServiceError>;
 }
 
 /**
@@ -169,11 +185,22 @@ export const makeTypeScriptCompilerService = (
 			return exports.includes(exportName);
 		});
 
+	// CHANGE: Removed getExportTypeSignature implementation
+	// WHY: Not used in this legacy service, only in Effect-based service
+	// NOTE: This service is legacy and will be deprecated
+	const getExportTypeSignature = (
+		_modulePath: string,
+		_exportName: string,
+	): Effect.Effect<string | undefined, TypeScriptServiceError> =>
+		// Not implemented in legacy service
+		Effect.succeed(undefined);
+
 	return {
 		getSymbolAtLocation,
 		getTypeAtLocation,
 		getPropertiesOfType,
 		getExportsOfModule,
 		hasExport,
+		getExportTypeSignature,
 	};
 };

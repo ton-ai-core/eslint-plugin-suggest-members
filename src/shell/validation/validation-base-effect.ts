@@ -12,6 +12,7 @@ import {
 } from "../../core/index.js";
 import type { SuggestionWithScore } from "../../core/types/domain-types.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
+import type { TypeScriptCompilerService } from "../services/typescript-compiler-effect.js";
 import { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
 
 /**
@@ -29,6 +30,61 @@ export interface BaseValidationConfig<TResult> {
 	) => TResult;
 	readonly isValidCandidate: (candidate: string, userInput: string) => boolean;
 }
+
+/**
+ * Enriches suggestions with TypeScript type signatures
+ *
+ * CHANGE: Added type signature enrichment for suggestions
+ * WHY: Provide helpful context about what each export/member is
+ * FORMAT: Each suggestion gets optional signature like "(str: string) => number"
+ *
+ * @param suggestions - Base suggestions with only names and scores
+ * @param modulePath - Module path to get signatures from
+ * @param tsService - TypeScript service for type extraction
+ * @returns Effect with enriched suggestions containing signatures
+ *
+ * @purity SHELL
+ * @effect TypeScript Compiler API access
+ * @complexity O(n) where n = |suggestions|
+ * @throws Never - все ошибки типизированы в Effect
+ */
+const enrichSuggestionsWithSignatures = (
+	suggestions: readonly SuggestionWithScore[],
+	modulePath: string,
+	tsService: TypeScriptCompilerService,
+): Effect.Effect<
+	readonly SuggestionWithScore[],
+	TypeScriptServiceError,
+	never
+> =>
+	Effect.gen(function* (_) {
+		// CHANGE: Get type signatures for each suggestion
+		// WHY: Provide context about what the suggested export is
+		const enriched = yield* _(
+			Effect.all(
+				suggestions.map((suggestion) =>
+					Effect.gen(function* (_) {
+						// Try to get type signature for this export
+						const signature = yield* _(
+							tsService.getExportTypeSignature(modulePath, suggestion.name),
+						);
+
+						// Return suggestion with signature if available
+						const result: SuggestionWithScore = {
+							name: suggestion.name,
+							score: suggestion.score,
+							...(signature !== undefined && { signature }),
+						};
+
+						return result;
+					}),
+				),
+				{ concurrency: "unbounded" }, // Run in parallel for performance
+			),
+		);
+
+		return enriched;
+	});
 
 /**
  * Base validation effect with shared logic
@@ -107,9 +163,21 @@ export const baseValidationEffect = <TResult>(
 				findSimilarCandidatesEffect(name, validCandidates),
 			);
 
+			// CHANGE: Enrich suggestions with type signatures
+			// WHY: Provide helpful type context in error messages
+			// PURITY: SHELL (calls TypeScript API)
+			const enrichedSuggestions = yield* _(
+				enrichSuggestionsWithSignatures(suggestions, modulePath, tsService),
+			);
+
 			// CHANGE: Return typed validation result
 			// WHY: Type-safe error handling without exceptions
 			// PURITY: CORE
-			return config.makeInvalidResult(name, modulePath, suggestions, node);
+			return config.makeInvalidResult(
+				name,
+				modulePath,
+				enrichedSuggestions,
+				node,
+			);
 		}),
 	);

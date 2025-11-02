@@ -114,48 +114,39 @@ describe("suggest-module-paths rule", () => {
 		],
 
 		invalid: [
-			// NOTE: Invalid cases are commented out because the rule uses async
-			// validation (Effect.runPromise) which doesn't work synchronously in RuleTester
-			// The rule correctly reports errors in real usage, but RuleTester expects
-			// synchronous error reporting.
-			//
-			// TODO: Consider switching to Effect.runSync for synchronous validation
-			// or test these cases using end-to-end integration tests instead
+			// CHANGE: Test cases for module path typos
+			// WHY: Verify rule detects and suggests corrections for path typos
+			// NOTE: These now work because validation was changed to Effect.runSync
+			{
+				code: `import { formatString } from './helpr';`,
+				filename: testFilePath,
+				errors: [
+					{
+						messageId: "suggestModulePaths",
+						// Should suggest 'helper'
+					},
+				],
+			},
+			{
+				code: `import { formatDate } from './formater';`,
+				filename: testFilePath,
+				errors: [
+					{
+						messageId: "suggestModulePaths",
+						// Should suggest 'helper' or 'formatter'
+					},
+				],
+			},
+			{
+				code: `import something from './nonexistent';`,
+				filename: testFilePath,
+				errors: [
+					{
+						messageId: "suggestModulePaths",
+						// Should suggest nearby files
+					},
+				],
+			},
 		],
-	});
-});
-
-// CHANGE: Additional mathematical property tests
-// WHY: Verify rule satisfies mathematical invariants
-// INVARIANT: ∀ valid_path: consistent(validate(valid_path))
-describe("suggest-module-paths - Mathematical Properties", () => {
-	it("should satisfy idempotency: valid code remains valid on multiple runs", () => {
-		// CHANGE: Test idempotency property for valid cases
-		// WHY: Rule should be deterministic
-		// INVARIANT: ∀ code: valid(code) → valid(run(code)) ∧ valid(run(run(code)))
-
-		// The rule produces consistent results - tested implicitly by
-		// running the same valid test cases multiple times in the main test suite
-		expect(true).toBe(true);
-	});
-
-	it("should satisfy monotonicity: more similar paths rank higher", () => {
-		// CHANGE: Test that suggestions are ordered by similarity
-		// WHY: Better suggestions should come first
-		// INVARIANT: ∀ s₁, s₂: similarity(s₁) > similarity(s₂) → rank(s₁) < rank(s₂)
-
-		// This is implicitly tested by the rule's suggestion algorithm
-		// The Jaro-Winkler similarity ensures monotonicity
-		expect(true).toBe(true);
-	});
-
-	it("should only check relative paths (./  or ../)", () => {
-		// CHANGE: Verify that absolute or package imports are ignored
-		// WHY: Rule only checks relative imports
-		// PRECONDITION: path.startsWith('./') ∨ path.startsWith('../')
-
-		// This is tested by the valid test cases that include non-relative imports
-		// which do not trigger any errors
-		expect(true).toBe(true);
 	});
 });

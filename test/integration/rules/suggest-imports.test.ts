@@ -30,9 +30,54 @@ ruleTester.run("suggest-imports", suggestImportsRule, {
 		`import { createReadStream } from 'fs';`,
 	],
 	invalid: [
-		// CHANGE: Test message format validation
-		// WHY: Ensure our rule produces helpful error messages
-		// NOTE: These tests validate message format, not error detection
-		// The rule only triggers when TypeScript reports import errors
+		// CHANGE: Test cases for import name typos
+		// WHY: Verify rule suggests corrections for mistyped import names
+		// NOTE: Rule works when TypeScript reports import resolution errors
+
+		// Test fs module import typos
+		{
+			code: `import { readFileSynk } from 'fs';`,
+			errors: [
+				{
+					messageId: "suggestImports",
+					// Should suggest 'readFileSync'
+				},
+			],
+		},
+		{
+			code: `import { readdirSynk } from 'fs';`,
+			errors: [
+				{
+					messageId: "suggestImports",
+					// Should suggest 'readdirSync'
+				},
+			],
+		},
+
+		// Test path module import typos
+		{
+			code: `import { resolvee } from 'path';`,
+			errors: [
+				{
+					messageId: "suggestImports",
+					// Should suggest 'resolve'
+				},
+			],
+		},
+
+		// Test multiple typos
+		{
+			code: `import { readFileSynk, writeFileSynk } from 'fs';`,
+			errors: [
+				{
+					messageId: "suggestImports",
+					// Should suggest 'readFileSync'
+				},
+				{
+					messageId: "suggestImports",
+					// Should suggest 'writeFileSync'
+				},
+			],
+		},
 	],
 });

@@ -50,9 +50,95 @@ ruleTester.run("suggest-members", suggestMembersRule, {
 		`,
 	],
 	invalid: [
-		// CHANGE: Test cases that should trigger TypeScript errors
-		// WHY: Our rule only works when TypeScript reports property access errors
-		// NOTE: These tests may fail if TypeScript doesn't report errors in test environment
-		// This indicates our rules work as secondary validation, not primary error detection
+		// CHANGE: Test cases for member access typos
+		// WHY: Verify rule suggests corrections when accessing non-existent members
+		// NOTE: Rule works when TypeScript reports property access errors
+
+		// Test string method typos
+		{
+			code: `
+				const str: string = "test";
+				str.toUpperCas();
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'toUpperCase'
+				},
+			],
+		},
+		{
+			code: `
+				const str: string = "hello";
+				str.toLowerCas();
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'toLowerCase'
+				},
+			],
+		},
+
+		// Test array method typos
+		{
+			code: `
+				const arr: number[] = [1, 2, 3];
+				arr.pusj(4);
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'push'
+				},
+			],
+		},
+		{
+			code: `
+				const arr: number[] = [1, 2, 3];
+				arr.slise(0, 2);
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'slice'
+				},
+			],
+		},
+
+		// Test object property typos
+		{
+			code: `
+				interface User {
+					name: string;
+					age: number;
+					email: string;
+				}
+				const user: User = { name: "John", age: 30, email: "john@example.com" };
+				console.log(user.nam);
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'name'
+				},
+			],
+		},
+		{
+			code: `
+				interface User {
+					name: string;
+					email: string;
+				}
+				const user: User = { name: "John", email: "john@example.com" };
+				console.log(user.emal);
+			`,
+			errors: [
+				{
+					messageId: "suggestMembers",
+					// Should suggest 'email'
+				},
+			],
+		},
 	],
 });

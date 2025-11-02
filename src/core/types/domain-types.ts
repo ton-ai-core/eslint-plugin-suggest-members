@@ -49,15 +49,20 @@ export type NormalizedString = string & {
 export type Token = string & { readonly __brand: "Token" };
 
 /**
- * Suggestion with similarity score
+ * Suggestion with similarity score and optional type signature
  *
  * @pure true
  * @purity CORE
  * @invariant score ∈ [0, 1]
+ * @invariant signature => signature.length > 0
+ *
+ * CHANGE: Added optional signature field
+ * WHY: Display type signatures for methods and properties in suggestions
  */
 export interface SuggestionWithScore {
 	readonly name: string;
 	readonly score: SimilarityScore;
+	readonly signature?: string; // Optional TypeScript type signature (e.g., "(str: string) => number")
 }
 
 /**
