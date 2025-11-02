@@ -5,6 +5,13 @@
 
 import type { SuggestionWithScore } from "../types/domain-types.js";
 
+// CHANGE: Changed to multi-line bullet list format with limit of 5 suggestions
+// WHY: Improved readability and consistency with TypeScript error format
+// QUOTE: "Ошибки должны быть в таком стиле: [multi-line format]"
+// QUOTE: "мы выводим до 5 самых вероятных элементов"
+
+const MAX_SUGGESTIONS = 5;
+
 /**
  * Formats suggestion list into readable string
  *
@@ -14,7 +21,7 @@ import type { SuggestionWithScore } from "../types/domain-types.js";
  * @pure true
  * @purity CORE
  * @effect None
- * @complexity O(n) where n = |suggestions|
+ * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  * @throws Never
  */
 export function formatSuggestionMessage(
@@ -24,87 +31,89 @@ export function formatSuggestionMessage(
 		return "No similar suggestions found.";
 	}
 
-	const suggestionList = suggestions.map((s) => `'${s.name}'`).join(", ");
+	const topSuggestions = suggestions.slice(0, MAX_SUGGESTIONS);
+	const bulletList = topSuggestions.map((s) => `  - ${s.name}`).join("\n");
 
-	return `Did you mean ${suggestionList}?`;
+	return `Did you mean:\n${bulletList}`;
 }
 
 /**
- * Common suggestion list formatter
+ * Common suggestion list formatter with multi-line bullet list
  *
  * @purity CORE
- * @complexity O(n)
+ * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  */
 const formatSuggestionList = (
 	suggestions: readonly SuggestionWithScore[],
-): string => suggestions.map((s) => `'${s.name}'`).join(", ");
-
-/**
- * Generic suggestion message formatter
- *
- * @purity CORE
- * @complexity O(n)
- */
-const createSuggestionMessage = (
-	prefix: string,
-	suggestions: readonly SuggestionWithScore[],
 ): string => {
-	if (suggestions.length === 0) {
-		return "No similar suggestions found.";
-	}
-	return `${prefix} ${formatSuggestionList(suggestions)}?`;
+	const topSuggestions = suggestions.slice(0, MAX_SUGGESTIONS);
+	return topSuggestions.map((s) => `  - ${s.name}`).join("\n");
 };
 
 /**
- * Formats member validation message
+ * Formats member validation message with full context
  *
+ * @param propertyName - Property name that was not found
+ * @param typeName - Type name where property was accessed (optional)
  * @param suggestions - Scored suggestions
  * @returns Formatted message
  *
  * @pure true
  * @purity CORE
  * @effect None
- * @complexity O(n) where n = |suggestions|
+ * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  * @throws Never
  */
 export function formatMemberMessage(
+	propertyName: string,
+	typeName: string | undefined,
 	suggestions: readonly SuggestionWithScore[],
 ): string {
-	return createSuggestionMessage("Did you mean", suggestions);
+	const typeContext = typeName !== undefined ? ` on type "${typeName}"` : "";
+	const prefix = `Property "${propertyName}" does not exist${typeContext}. Did you mean`;
+	return `${prefix}:\n${formatSuggestionList(suggestions)}`;
 }
 
 /**
- * Formats import validation message
+ * Formats import validation message with full context
  *
+ * @param importName - Import name that was not found
+ * @param modulePath - Module path being imported from
  * @param suggestions - Scored suggestions
  * @returns Formatted message
  *
  * @pure true
  * @purity CORE
  * @effect None
- * @complexity O(n) where n = |suggestions|
+ * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  * @throws Never
  */
 export function formatImportMessage(
+	importName: string,
+	modulePath: string,
 	suggestions: readonly SuggestionWithScore[],
 ): string {
-	return createSuggestionMessage("Did you mean", suggestions);
+	const prefix = `Cannot find export "${importName}" in module "${modulePath}". Did you mean`;
+	return `${prefix}:\n${formatSuggestionList(suggestions)}`;
 }
 
 /**
- * Formats module path validation message
+ * Formats module path validation message with full context
  *
+ * @param requestedPath - Module path that was not found
  * @param suggestions - Scored suggestions
  * @returns Formatted message
  *
  * @pure true
  * @purity CORE
  * @effect None
- * @complexity O(n) where n = |suggestions|
+ * @complexity O(n) where n = min(|suggestions|, MAX_SUGGESTIONS)
  * @throws Never
  */
 export function formatModuleMessage(
+	requestedPath: string,
 	suggestions: readonly SuggestionWithScore[],
 ): string {
-	return createSuggestionMessage("Did you mean", suggestions);
+	const prefix = `Cannot find module "${requestedPath}". Did you mean`;
+	return `${prefix}:\n${formatSuggestionList(suggestions)}`;
 }

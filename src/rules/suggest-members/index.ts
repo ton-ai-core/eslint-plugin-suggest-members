@@ -1,21 +1,22 @@
-// CHANGE: ESLint rule for suggesting similar members
-// WHY: Help users find correct property names
+// CHANGE: ESLint rule for suggesting similar member names
+// WHY: Help users find correct property/method names
 // PURITY: INFRASTRUCTURE (ESLint integration)
 // REF: FUNCTIONAL_ARCHITECTURE.md - RULES layer
+// RULE: suggest-members - validates member access expressions
 
 import type { TSESTree } from "@typescript-eslint/utils";
-import { ESLintUtils } from "@typescript-eslint/utils";
-import { Effect } from "effect";
-
+import { AST_NODE_TYPES, ESLintUtils } from "@typescript-eslint/utils";
+import type { RuleContext } from "@typescript-eslint/utils/ts-eslint";
+import type { Layer } from "effect";
+import { Effect, pipe } from "effect";
 import {
-	extractPropertyName,
-	shouldSkipMemberExpression,
-} from "../../core/validators/index.js";
-import { makeTypeScriptCompilerServiceLayer } from "../../shell/services/typescript-compiler-effect.js";
+	makeTypeScriptCompilerServiceLayer,
+	type TypeScriptCompilerServiceTag,
+} from "../../shell/services/typescript-compiler-effect.js";
 import { runValidationEffect } from "../../shell/shared/validation-runner.js";
 import {
 	formatMemberValidationMessage,
-	validateMemberAccessEffect,
+	validateMemberAccessEffectWithNodes,
 } from "../../shell/validation/member-validation-effect.js";
 
 // CHANGE: Rule metadata
@@ -26,12 +27,59 @@ const createRule = ESLintUtils.RuleCreator(
 );
 
 /**
- * ESLint rule: suggest-members
- *
- * Suggests similar property names when accessing non-existent members
+ * Creates validation and reporting function
  *
  * @purity SHELL
- * @effect ESLint reporting, TypeScript Compiler API
+ * @effect ESLint reporting, Effect composition
+ * @complexity O(1) per validation
+ */
+interface NodeMap {
+	readonly get: (key: TSESTree.Node) => object | null | undefined;
+}
+
+const createValidateAndReport =
+	(
+		tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>,
+		context: RuleContext<"suggestMembers", []>,
+		esTreeNodeToTSNodeMap: NodeMap,
+	) =>
+	(node: TSESTree.MemberExpression): void => {
+		// Skip computed properties and optional chaining for now
+		if (node.computed === true || node.optional === true) return;
+
+		// Skip if property is not an identifier
+		if (node.property.type !== AST_NODE_TYPES.Identifier) return;
+
+		// CHANGE: Get TypeScript node for the OBJECT (not the whole MemberExpression)
+		// WHY: We need the type of the object being accessed, not the property itself
+		const tsObjectNode = esTreeNodeToTSNodeMap.get(node.object);
+
+		if (tsObjectNode === undefined || tsObjectNode === null) {
+			// Skip if we can't get TypeScript node for object
+			return;
+		}
+
+		const validationEffect = pipe(
+			validateMemberAccessEffectWithNodes(node, tsObjectNode),
+			Effect.provide(tsServiceLayer),
+		);
+
+		runValidationEffect({
+			validationEffect,
+			context,
+			reportNode: node.property,
+			messageId: "suggestMembers",
+			formatMessage: formatMemberValidationMessage,
+		});
+	};
+
+/**
+ * ESLint rule: suggest-members
+ *
+ * Suggests similar member names when accessing non-existent properties
+ *
+ * @purity SHELL
+ * @effect ESLint reporting, TypeScript type checking
  */
 export const suggestMembersRule = createRule({
 	name: "suggest-members",
@@ -39,7 +87,7 @@ export const suggestMembersRule = createRule({
 		type: "problem",
 		docs: {
 			description:
-				"Suggest similar member names when accessing non-existent properties",
+				"enforce correct member names when accessing non-existent properties",
 		},
 		messages: {
 			suggestMembers: "{{message}}",
@@ -49,52 +97,21 @@ export const suggestMembersRule = createRule({
 	defaultOptions: [],
 
 	create(context) {
-		// CHANGE: Get TypeScript services from parser
-		// WHY: Need type checker for property validation
 		const parserServices = ESLintUtils.getParserServices(context);
-		const checker = parserServices.program?.getTypeChecker();
 		const program = parserServices.program;
+		const checker = program?.getTypeChecker();
+		const esTreeNodeToTSNodeMap = parserServices.esTreeNodeToTSNodeMap;
 
-		// CHANGE: Create TypeScript service layer
-		// WHY: Effect-based dependency injection
 		const tsServiceLayer = makeTypeScriptCompilerServiceLayer(checker, program);
+		const validateAndReport = createValidateAndReport(
+			tsServiceLayer,
+			context,
+			esTreeNodeToTSNodeMap,
+		);
 
 		return {
 			MemberExpression(node: TSESTree.MemberExpression): void {
-				// CHANGE: Use CORE predicate for skip logic
-				// WHY: Pure decision logic in CORE layer
-				if (shouldSkipMemberExpression(node)) {
-					return;
-				}
-
-				// CHANGE: Extract property name using CORE function
-				// WHY: Pure extraction logic
-				const propertyName = extractPropertyName(node);
-				if (propertyName === "") {
-					return;
-				}
-
-				// CHANGE: Get TypeScript node for validation
-				// WHY: Need TypeScript node for type checking
-				const esTreeNodeToTSNodeMap = parserServices.esTreeNodeToTSNodeMap;
-				const tsNode = esTreeNodeToTSNodeMap.get(node.object);
-
-				// CHANGE: Validate member access using Effect-based DOMAIN logic
-				// WHY: Pure functional composition with typed effects
-				const validationEffect = Effect.provide(
-					validateMemberAccessEffect(tsNode),
-					tsServiceLayer,
-				);
-
-				// CHANGE: Run Effect and handle result
-				// WHY: Execute effectful validation using shared runner
-				runValidationEffect(
-					validationEffect,
-					context,
-					node.property,
-					"suggestMembers",
-					formatMemberValidationMessage,
-				);
+				validateAndReport(node);
 			},
 		};
 	},

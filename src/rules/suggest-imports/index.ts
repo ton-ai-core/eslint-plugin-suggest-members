@@ -24,5 +24,6 @@ export const suggestImportsRule = createValidationRule(
 	{
 		validateSpecifier: validateImportSpecifierEffect,
 		formatMessage: formatImportValidationMessage,
+		messageId: "suggestImports",
 	},
 );

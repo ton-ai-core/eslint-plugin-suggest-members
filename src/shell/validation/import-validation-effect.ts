@@ -7,6 +7,7 @@ import type { Effect } from "effect";
 import { match } from "ts-pattern";
 import type { ImportValidationResult } from "../../core/index.js";
 import {
+	formatImportMessage,
 	makeImportNotFoundResult,
 	makeValidImportResult,
 } from "../../core/index.js";
@@ -116,13 +117,8 @@ export const formatImportValidationMessage = (
 		.with({ _tag: "ImportNotFound" }, (invalid) => {
 			const { importName, modulePath, suggestions } = invalid;
 			if (suggestions.length === 0) {
-				return `Module '${modulePath}' does not export '${importName}'.`;
+				return `Cannot find export "${importName}" in module "${modulePath}".`;
 			}
-
-			const suggestionList = suggestions
-				.map((s) => `'${s.name}' (${(s.score * 100).toFixed(0)}%)`)
-				.join(", ");
-
-			return `Module '${modulePath}' does not export '${importName}'. Did you mean: ${suggestionList}?`;
+			return formatImportMessage(importName, modulePath, suggestions);
 		})
 		.exhaustive();

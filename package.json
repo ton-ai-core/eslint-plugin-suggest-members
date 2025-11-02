@@ -22,7 +22,10 @@
     "test": "npm run lint && npm run build && npx @ton-ai-core/vibecode-linter test/ && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",
     "test:rules": "npm run validate:rules && npm test -- --testPathPattern=test/unit/rules",
     "test:integration": "npm test -- --testPathPattern=test/integration",
-    "release": "npm run build && npm version patch && npm publish --access public",
+    "release": "npx ts-node scripts/release.ts",
+    "release:minor": "npx ts-node scripts/release.ts minor",
+    "release:major": "npx ts-node scripts/release.ts major",
+    "release:dry": "npx ts-node scripts/release.ts --dry-run",
     "lint": "npx @ton-ai-core/vibecode-linter src/"
   },
   "repository": {
@@ -55,7 +58,7 @@
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
     "@eslint/js": "^9.38.0",
     "@jest/globals": "^29.7.0",
-    "@ton-ai-core/eslint-plugin-suggest-members-aliased": "npm:@ton-ai-core/eslint-plugin-suggest-members@^1.6.6",
+    "@ton-ai-core/eslint-plugin-suggest-members-aliased": "npm:@ton-ai-core/eslint-plugin-suggest-members@^1.6.7",
     "@ton-ai-core/vibecode-linter": "^1.0.5",
     "@ton/core": "^0.60.1",
     "@types/jest": "^29.5.14",

@@ -47,13 +47,13 @@ const createValidateAndReport =
 			Effect.provide(fsServiceLayer),
 		);
 
-		runValidationEffect(
+		runValidationEffect({
 			validationEffect,
 			context,
 			reportNode,
-			"suggestModulePaths",
-			formatModulePathValidationMessage,
-		);
+			messageId: "suggestModulePaths",
+			formatMessage: formatModulePathValidationMessage,
+		});
 	};
 
 /**
@@ -70,7 +70,7 @@ export const suggestModulePathsRule = createRule({
 		type: "problem",
 		docs: {
 			description:
-				"Suggest similar module paths when importing non-existent modules",
+				"enforce correct module paths by suggesting similar paths when importing non-existent modules",
 		},
 		messages: {
 			suggestModulePaths: "{{message}}",

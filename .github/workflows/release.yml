@@ -1,0 +1,150 @@
+name: 🏷️ Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (no actual release)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  release:
+    name: 🚀 Create Release
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      packages: write
+      
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Run quality checks
+      run: |
+        npm run lint
+        npm run build
+        npm test
+        
+    - name: ⚙️ Configure git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: 📋 Get current version
+      id: current_version
+      run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+    - name: 🔢 Bump version
+      id: version_bump
+      run: |
+        if [ "${{ inputs.dry_run }}" = "true" ]; then
+          echo "🔍 DRY RUN: Would bump ${{ inputs.version }} version"
+          NEW_VERSION=$(npm version ${{ inputs.version }} --no-git-tag-version)
+          git checkout -- package.json package-lock.json
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        else
+          NEW_VERSION=$(npm version ${{ inputs.version }} --no-git-tag-version)
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 📝 Update CHANGELOG
+      if: ${{ !inputs.dry_run }}
+      run: |
+        TODAY=$(date +%Y-%m-%d)
+        NEW_VERSION="${{ steps.version_bump.outputs.new_version }}"
+        
+        # Update CHANGELOG.md
+        sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $TODAY/" CHANGELOG.md
+        
+        # Commit changes
+        git add .
+        git commit -m "chore(release): $NEW_VERSION"
+        git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+        
+    - name: 🏗️ Build for release
+      run: npm run build
+      
+    - name: 🚀 Publish to NPM
+      if: ${{ !inputs.dry_run }}
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        
+    - name: 📤 Push changes
+      if: ${{ !inputs.dry_run }}
+      run: |
+        git push origin main
+        git push origin --tags
+        
+    - name: 📋 Generate release notes
+      id: release_notes
+      run: |
+        NEW_VERSION="${{ steps.version_bump.outputs.new_version }}"
+        PREV_VERSION="${{ steps.current_version.outputs.version }}"
+        
+        # Extract changelog section for this version
+        RELEASE_NOTES=$(sed -n "/## \[$NEW_VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+        
+        # Save to file for GitHub release
+        echo "$RELEASE_NOTES" > release_notes.md
+        
+        # Also output for step
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: 🎉 Create GitHub Release
+      if: ${{ !inputs.dry_run }}
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version_bump.outputs.new_version }}
+        release_name: Release ${{ steps.version_bump.outputs.new_version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        
+    - name: 📊 Release Summary
+      run: |
+        echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Previous Version**: ${{ steps.current_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **New Version**: ${{ steps.version_bump.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version Type**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Dry Run**: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.dry_run }}" = "true" ]; then
+          echo "🔍 **This was a dry run - no changes were made**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✅ **Release completed successfully!**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **NPM Package**: https://www.npmjs.com/package/@ton-ai-core/eslint-plugin-suggest-members" >> $GITHUB_STEP_SUMMARY
+          echo "🏷️ **GitHub Release**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version_bump.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+        fi

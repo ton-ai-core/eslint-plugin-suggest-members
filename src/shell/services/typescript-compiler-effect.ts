@@ -183,6 +183,139 @@ const createGetPropertiesOfTypeEffect =
 		);
 
 /**
+ * Find context source file for module resolution
+ *
+ * @purity CORE
+ * @complexity O(n) where n = number of source files
+ */
+const findContextFile = (program: ts.Program): ts.SourceFile | undefined => {
+	const files = program.getSourceFiles();
+	return (
+		files.find((sf) => !sf.isDeclarationFile && sf.fileName.endsWith(".ts")) ||
+		files[0]
+	);
+};
+
+/**
+ * Resolve module symbol from resolved module
+ *
+ * @purity SHELL
+ * @complexity O(1)
+ */
+const resolveModuleSymbol = (
+	checker: ts.TypeChecker,
+	program: ts.Program,
+	moduleResolution: ts.ResolvedModuleWithFailedLookupLocations,
+): ts.Symbol | undefined => {
+	if (!moduleResolution.resolvedModule) {
+		return undefined;
+	}
+
+	const resolvedFile = program.getSourceFile(
+		moduleResolution.resolvedModule.resolvedFileName,
+	);
+	return resolvedFile ? checker.getSymbolAtLocation(resolvedFile) : undefined;
+};
+
+/**
+ * Find module symbol in global scope
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = number of global symbols
+ */
+const findGlobalModuleSymbol = (
+	checker: ts.TypeChecker,
+	contextFile: ts.SourceFile,
+	modulePath: string,
+): ts.Symbol | undefined => {
+	const globalSymbols = checker.getSymbolsInScope(
+		contextFile,
+		ts.SymbolFlags.Module | ts.SymbolFlags.Namespace,
+	);
+
+	return globalSymbols.find((symbol) => {
+		const name = symbol.getName();
+		return (
+			name === modulePath ||
+			name === `"${modulePath}"` ||
+			name.includes(modulePath)
+		);
+	});
+};
+
+/**
+ * Find ambient module symbol
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = number of ambient modules
+ */
+const findAmbientModuleSymbol = (
+	checker: ts.TypeChecker,
+	modulePath: string,
+): ts.Symbol | undefined => {
+	const ambientModules = checker.getAmbientModules();
+	return ambientModules.find(
+		(am) => am.getName() === `"${modulePath}"` || am.getName() === modulePath,
+	);
+};
+
+/**
+ * Extract export names from module symbol
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = number of exports
+ */
+const extractExportNames = (
+	checker: ts.TypeChecker,
+	moduleSymbol: ts.Symbol,
+): readonly string[] => {
+	const exports = checker.getExportsOfModule(moduleSymbol);
+	return exports
+		.map((exp) => exp.getName())
+		.filter((name): name is string => name.length > 0);
+};
+
+/**
+ * Try to get built-in module exports
+ *
+ * @purity SHELL
+ * @complexity O(1)
+ */
+const tryGetBuiltinExports = (modulePath: string): readonly string[] | null => {
+	if (!isNodeBuiltinModule(modulePath)) {
+		return null;
+	}
+	return getNodeBuiltinExports(modulePath) ?? null;
+};
+
+/**
+ * Find module symbol using TypeScript resolution
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = number of symbols
+ */
+const findModuleSymbol = (
+	checker: ts.TypeChecker,
+	program: ts.Program,
+	modulePath: string,
+	contextFile: ts.SourceFile,
+): ts.Symbol | undefined => {
+	const compilerOptions = program.getCompilerOptions();
+	const moduleResolution = ts.resolveModuleName(
+		modulePath,
+		contextFile.fileName,
+		compilerOptions,
+		ts.sys,
+	);
+
+	return (
+		resolveModuleSymbol(checker, program, moduleResolution) ||
+		findGlobalModuleSymbol(checker, contextFile, modulePath) ||
+		findAmbientModuleSymbol(checker, modulePath)
+	);
+};
+
+/**
  * Module exports effect with proper module resolution
  *
  * @purity SHELL
@@ -196,13 +329,9 @@ const createGetExportsOfModuleEffect =
 		modulePath: string,
 	): Effect.Effect<readonly string[], TypeScriptServiceError, never> =>
 		Effect.gen(function* (_) {
-			// CHANGE: Handle Node.js built-in modules first
-			// WHY: Built-ins don't have source files but have known exports
-			if (isNodeBuiltinModule(modulePath)) {
-				const exports = getNodeBuiltinExports(modulePath);
-				if (exports) {
-					return exports;
-				}
+			const builtinExports = tryGetBuiltinExports(modulePath);
+			if (builtinExports) {
+				return builtinExports;
 			}
 
 			if (!checker || !program) {
@@ -210,91 +339,24 @@ const createGetExportsOfModuleEffect =
 			}
 
 			try {
-				// CHANGE: Use TypeScript's module resolution to handle all module types
-				// WHY: Built-in modules and external packages need proper resolution
-				// REF: TypeScript Compiler API documentation
-
-				// Try to resolve module using TypeScript's resolution
-				const compilerOptions = program.getCompilerOptions();
-
-				// Get any source file as context for resolution
-				const contextFile =
-					program
-						.getSourceFiles()
-						.find(
-							(sf) => !sf.isDeclarationFile && sf.fileName.endsWith(".ts"),
-						) || program.getSourceFiles()[0];
-
+				const contextFile = findContextFile(program);
 				if (!contextFile) {
 					return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
 				}
 
-				// CHANGE: Resolve module symbol through import resolution
-				// WHY: This handles built-ins, node_modules, and relative imports
-				const moduleResolution = ts.resolveModuleName(
+				const moduleSymbol = findModuleSymbol(
+					checker,
+					program,
 					modulePath,
-					contextFile.fileName,
-					compilerOptions,
-					ts.sys,
+					contextFile,
 				);
-
-				let moduleSymbol: ts.Symbol | undefined;
-
-				if (moduleResolution.resolvedModule) {
-					// Module was resolved to a file
-					const resolvedFile = program.getSourceFile(
-						moduleResolution.resolvedModule.resolvedFileName,
-					);
-					if (resolvedFile) {
-						moduleSymbol = checker.getSymbolAtLocation(resolvedFile);
-					}
-				} else {
-					// CHANGE: Try to find module symbol in global scope for built-ins
-					// WHY: Built-in Node.js modules are available globally in TypeScript
-					const globalSymbols = checker.getSymbolsInScope(
-						contextFile,
-						ts.SymbolFlags.Module | ts.SymbolFlags.Namespace,
-					);
-
-					moduleSymbol = globalSymbols.find((symbol) => {
-						const name = symbol.getName();
-						return (
-							name === modulePath ||
-							name === `"${modulePath}"` ||
-							name.includes(modulePath)
-						);
-					});
-
-					// CHANGE: Alternative approach - try ambient module resolution
-					// WHY: Some modules are declared as ambient modules
-					if (!moduleSymbol) {
-						const ambientModules = checker.getAmbientModules();
-						const ambientModule = ambientModules.find(
-							(am) =>
-								am.getName() === `"${modulePath}"` ||
-								am.getName() === modulePath,
-						);
-						if (ambientModule) {
-							moduleSymbol = ambientModule;
-						}
-					}
-				}
 
 				if (!moduleSymbol) {
 					return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
 				}
 
-				// CHANGE: Get exports from resolved module symbol
-				// WHY: Now we have the correct symbol regardless of module type
-				const exports = checker.getExportsOfModule(moduleSymbol);
-				const exportNames = exports
-					.map((exp) => exp.getName())
-					.filter((name): name is string => name.length > 0);
-
-				// Debug info removed for production
-
-				return exportNames;
-			} catch (error) {
+				return extractExportNames(checker, moduleSymbol);
+			} catch (_error) {
 				return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
 			}
 		});

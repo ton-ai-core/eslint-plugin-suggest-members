@@ -20,7 +20,7 @@ export interface ESLintTestConfig {
  */
 export class TestFileManager {
 	private tempFiles: string[] = [];
-	private tempDir: string;
+	private readonly tempDir: string;
 
 	constructor(tempDirName: string, cwd: string = process.cwd()) {
 		this.tempDir = join(cwd, tempDirName);
@@ -98,7 +98,7 @@ export async function createESLintWithSuggestExports(
 		},
 	};
 
-	if (config.useTypeScript) {
+	if (config.useTypeScript === true) {
 		const tsParser = await import("@typescript-eslint/parser");
 		(baseConfig.languageOptions as any).parser = tsParser;
 		(baseConfig.languageOptions as any).parserOptions = {
@@ -111,7 +111,7 @@ export async function createESLintWithSuggestExports(
 	return new ESLint({
 		overrideConfigFile: true,
 		overrideConfig: [baseConfig as any],
-		cwd: config.cwd || process.cwd(),
+		cwd: config.cwd ?? process.cwd(),
 	});
 }
 
@@ -128,7 +128,7 @@ export interface TestResultAnalysis {
  * Analyze ESLint results for suggest-exports errors
  */
 export function analyzeResults(results: any[]): TestResultAnalysis {
-	const allMessages = results[0]?.messages || [];
+	const allMessages = (results[0]?.messages ?? []) as any[];
 	const suggestExportsErrors = allMessages.filter(
 		(msg: any) => msg.ruleId === "@ton-ai-core/suggest-members/suggest-exports",
 	);

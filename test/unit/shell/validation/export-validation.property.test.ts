@@ -176,7 +176,7 @@ describe("export validation property tests", () => {
 						return (
 							message.includes(exportName) &&
 							message.includes(modulePath) &&
-							message.includes("does not export")
+							message.includes("Cannot find export")
 						);
 					},
 				),

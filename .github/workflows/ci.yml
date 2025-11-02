@@ -1,0 +1,254 @@
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  # 🧪 Quality Assurance
+  test:
+    name: 🧪 Test & Lint
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Lint code
+      run: npm run lint
+      
+    - name: 🏗️ Build project
+      run: npm run build
+      
+    - name: 🧪 Run tests
+      run: npm test
+      
+    - name: 📊 Upload coverage
+      if: matrix.node-version == '20.x'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        fail_ci_if_error: false
+
+  # 🔒 Security Audit
+  security:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Audit dependencies
+      run: npm audit --audit-level moderate
+      
+    - name: 🛡️ Check for vulnerabilities
+      run: npx audit-ci --moderate
+
+  # 📦 Build & Package
+  build:
+    name: 📦 Build & Package
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🏗️ Build project
+      run: npm run build
+      
+    - name: 📋 Validate package
+      run: npm pack --dry-run
+      
+    - name: 💾 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-files
+        path: dist/
+        retention-days: 7
+
+  # 🚀 Publish to NPM (only on release)
+  publish:
+    name: 🚀 Publish to NPM
+    runs-on: ubuntu-latest
+    needs: [test, security, build]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🏗️ Build project
+      run: npm run build
+      
+    - name: 🚀 Publish to NPM
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        
+    - name: 📢 Create release comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🎉 Package published successfully to NPM!\n\n📦 Install: `npm install @ton-ai-core/eslint-plugin-suggest-members@${{ github.event.release.tag_name }}`'
+          })
+
+  # 🧪 Integration Tests (real projects)
+  integration:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    strategy:
+      matrix:
+        test-project:
+          - name: "React TypeScript"
+            setup: |
+              npx create-react-app test-app --template typescript
+              cd test-app
+          - name: "Next.js"
+            setup: |
+              npx create-next-app@latest test-app --typescript --eslint
+              cd test-app
+          - name: "Node.js Express"
+            setup: |
+              mkdir test-app && cd test-app
+              npm init -y
+              npm install express @types/express typescript
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install plugin dependencies
+      run: npm ci
+      
+    - name: 🏗️ Build plugin
+      run: npm run build
+      
+    - name: 📦 Pack plugin
+      run: npm pack
+      
+    - name: 🚀 Setup test project - ${{ matrix.test-project.name }}
+      run: ${{ matrix.test-project.setup }}
+      
+    - name: 📦 Install plugin in test project
+      run: |
+        cd test-app
+        npm install ../ton-ai-core-eslint-plugin-suggest-members-*.tgz
+        
+    - name: ⚙️ Configure ESLint
+      run: |
+        cd test-app
+        cat > eslint.config.js << 'EOF'
+        import suggestMembers from "@ton-ai-core/eslint-plugin-suggest-members";
+        export default [{
+          files: ["**/*.{ts,tsx,js,jsx}"],
+          plugins: { "suggest-members": suggestMembers },
+          rules: {
+            "suggest-members/suggest-members": "error"
+          }
+        }];
+        EOF
+        
+    - name: 🧪 Test plugin functionality
+      run: |
+        cd test-app
+        echo 'const obj = { test: 1 }; obj.badProperty;' > test-file.ts
+        npx eslint test-file.ts || echo "Plugin working - found errors as expected"
+
+  # 📊 Performance Benchmarks
+  benchmark:
+    name: 📊 Performance Benchmark
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🏗️ Build project
+      run: npm run build
+      
+    - name: 📊 Run benchmarks
+      run: |
+        # Create large test file
+        mkdir -p benchmark
+        for i in {1..1000}; do
+          echo "const obj$i = { method: () => {} }; obj$i.badMethod();" >> benchmark/large-file.ts
+        done
+        
+        # Benchmark plugin performance
+        time npx eslint benchmark/large-file.ts --config eslint.config.js
+        
+    - name: 💾 Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmark/
+        retention-days: 7

@@ -7,6 +7,7 @@
 import type { Effect } from "effect";
 import { match } from "ts-pattern";
 
+import { formatImportMessage } from "../../core/formatting/messages.js";
 import type { ExportValidationResult } from "../../core/types/validation-types.js";
 import {
 	makeExportNotFoundResult,
@@ -115,13 +116,9 @@ export const formatExportValidationMessage = (
 			const { exportName, modulePath, suggestions } = invalid;
 
 			if (suggestions.length === 0) {
-				return `Module '${modulePath}' does not export '${exportName}'.`;
+				return `Cannot find export "${exportName}" in module "${modulePath}".`;
 			}
 
-			// CHANGE: Format suggestions with similarity scores
-			// WHY: Help users understand suggestion quality
-			const suggestionList = suggestions.map((s) => `  - ${s.name}`).join("\n");
-
-			return `Module '${modulePath}' does not export '${exportName}'. Did you mean:\n${suggestionList}`;
+			return formatImportMessage(exportName, modulePath, suggestions);
 		})
 		.exhaustive();

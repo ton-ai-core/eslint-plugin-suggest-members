@@ -9,6 +9,7 @@ import {
 	formatExportValidationMessage,
 	validateExportAccessEffect,
 } from "../../shell/validation/export-validation-effect.js";
+import { createFilesystemExportValidationEffect } from "../../shell/validation/filesystem-export-validation-effect.js";
 
 /**
  * ESLint rule: suggest-exports
@@ -26,6 +27,8 @@ export const suggestExportsRule = createValidationRule(
 	"suggestExports",
 	{
 		validateSpecifier: validateExportAccessEffect,
+		fallbackValidationEffect: createFilesystemExportValidationEffect,
 		formatMessage: formatExportValidationMessage,
+		messageId: "suggestExports",
 	},
 );

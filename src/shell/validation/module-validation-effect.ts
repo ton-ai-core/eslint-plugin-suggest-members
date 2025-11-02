@@ -255,7 +255,7 @@ export const formatModulePathValidationMessage = (
 	match(result)
 		.with({ _tag: "Valid" }, () => "")
 		.with({ _tag: "ModuleNotFound" }, (invalid) => {
-			const { suggestions } = invalid;
-			return formatModuleMessage(suggestions);
+			const { requestedPath, suggestions } = invalid;
+			return formatModuleMessage(requestedPath, suggestions);
 		})
 		.exhaustive();

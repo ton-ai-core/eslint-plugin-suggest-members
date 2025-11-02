@@ -178,7 +178,7 @@ describe("suggest-exports rule - Mathematical Verification", () => {
 	// TODO: Enable when TypeScript configuration is properly set up
 
 	describe("End-to-End Rule Testing", () => {
-		it("should pass valid export usage", async () => {
+		it("should pass valid export usage", () => {
 			// Skip RuleTester tests for now due to complexity
 			// TODO: Implement when TypeScript configuration is stable
 			expect(true).toBe(true);

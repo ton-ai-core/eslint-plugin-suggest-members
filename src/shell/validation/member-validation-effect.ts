@@ -37,20 +37,42 @@ export const validateMemberAccessEffect = (
 	MemberValidationResult,
 	TypeScriptServiceError,
 	TypeScriptCompilerServiceTag
+> => validateMemberAccessEffectWithNodes(node, node);
+
+/**
+ * Validates member access with separate ESTree and TypeScript nodes
+ *
+ * @param esTreeNode - ESTree MemberExpression node for skip logic
+ * @param tsNode - TypeScript node for type checking
+ * @returns Effect with validation result
+ *
+ * @purity SHELL
+ * @effect Effect<MemberValidationResult, TypeScriptServiceError, TypeScriptCompilerServiceTag>
+ * @invariant Result is Valid | InvalidMember (exhaustive)
+ * @complexity O(n log n) where n = |properties|
+ * @throws Never - все ошибки типизированы в Effect
+ */
+export const validateMemberAccessEffectWithNodes = (
+	esTreeNode: object, // ESTree MemberExpression
+	tsNode: object, // TypeScript node
+): Effect.Effect<
+	MemberValidationResult,
+	TypeScriptServiceError,
+	TypeScriptCompilerServiceTag
 > =>
 	pipe(
 		Effect.gen(function* (_) {
 			// CHANGE: Early return for nodes that should be skipped
 			// WHY: Pure predicate logic in CORE layer
 			// PURITY: CORE
-			if (shouldSkipMemberExpression(node)) {
+			if (shouldSkipMemberExpression(esTreeNode)) {
 				return makeValidResult();
 			}
 
 			// CHANGE: Extract property name using pure function
 			// WHY: Separate pure extraction from effectful validation
 			// PURITY: CORE
-			const propertyName = extractPropertyName(node);
+			const propertyName = extractPropertyName(esTreeNode);
 			if (propertyName.length === 0) {
 				return makeValidResult();
 			}
@@ -60,10 +82,10 @@ export const validateMemberAccessEffect = (
 			// PURITY: SHELL
 			const tsService = yield* _(TypeScriptCompilerServiceTag);
 
-			// CHANGE: Get type of object being accessed
+			// CHANGE: Get type of object being accessed using TypeScript node
 			// WHY: Need type information for property validation
 			// PURITY: SHELL
-			const objectType = yield* _(tsService.getTypeAtLocation(node));
+			const objectType = yield* _(tsService.getTypeAtLocation(tsNode));
 
 			// CHANGE: Get all properties of the type
 			// WHY: Need available properties for similarity matching
@@ -92,7 +114,7 @@ export const validateMemberAccessEffect = (
 			// CHANGE: Return typed validation result
 			// WHY: Type-safe error handling without exceptions
 			// PURITY: CORE
-			return makeInvalidMemberResult(propertyName, suggestions, node);
+			return makeInvalidMemberResult(propertyName, suggestions, esTreeNode);
 		}),
 	);
 
@@ -128,7 +150,8 @@ export const formatMemberValidationMessage = (
 	match(result)
 		.with({ _tag: "Valid" }, () => "")
 		.with({ _tag: "InvalidMember" }, (invalid) => {
-			const { suggestions } = invalid;
-			return formatMemberMessage(suggestions);
+			const { propertyName, suggestions } = invalid;
+			// TODO: Add type name extraction for better error messages
+			return formatMemberMessage(propertyName, undefined, suggestions);
 		})
 		.exhaustive();

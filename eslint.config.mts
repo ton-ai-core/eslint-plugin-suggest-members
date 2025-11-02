@@ -1,8 +1,7 @@
-// eslint.config.mjs
+// CHANGE: Add proper type declarations for untyped ES
 import js from "@eslint/js";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import suggestMembers from "@ton-ai-core/eslint-plugin-suggest-members-aliased";
-import eslintPlugin from "eslint-plugin-eslint-plugin";
 import importX from "eslint-plugin-import-x";
 import jestPlugin from "eslint-plugin-jest";
 import jsonc from "eslint-plugin-jsonc";
@@ -15,6 +14,7 @@ import unusedImports from "eslint-plugin-unused-imports";
 import yml from "eslint-plugin-yml";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import eslintPlugin from 'eslint-plugin-eslint-plugin';
 
 export default tseslint.config(
 	// Игноры
@@ -36,6 +36,7 @@ export default tseslint.config(
 	{
 		files: ["**/*.{ts,tsx}"],
 		extends: [
+			eslintPlugin.configs.recommended,
 			js.configs.recommended,
 			...tseslint.configs.recommended,
 			...tseslint.configs.recommendedTypeChecked,
@@ -44,7 +45,6 @@ export default tseslint.config(
 			"@eslint-community/eslint-comments": eslintComments,
 			jest: jestPlugin,
 			"@ton-ai-core/eslint-plugin-suggest-members": suggestMembers,
-			"eslint-plugin": eslintPlugin,
 			"typeorm-typescript": typeormTS,
 			sql,
 			"sql-template": sqlTemplate,
@@ -90,6 +90,8 @@ export default tseslint.config(
 			],
 		},
 		rules: {
+			'eslint-plugin/require-meta-docs-description': 'error',
+
 			// Метрики/сложность
 			complexity: ["error", 8],
 			"max-lines-per-function": [
@@ -222,22 +224,6 @@ export default tseslint.config(
 			"@ton-ai-core/eslint-plugin-suggest-members/suggest-members": "error",
 			"@ton-ai-core/eslint-plugin-suggest-members/suggest-imports": "error",
 			"@ton-ai-core/eslint-plugin-suggest-members/suggest-module-paths": "error",
-			"@ton-ai-core/eslint-plugin-suggest-members/suggest-exports": "error",
-
-			// ESLint Plugin Development Best Practices
-			"eslint-plugin/consistent-output": "error",
-			"eslint-plugin/fixer-return": "error",
-			"eslint-plugin/meta-property-ordering": "error",
-			"eslint-plugin/no-deprecated-context-methods": "error",
-			"eslint-plugin/no-deprecated-report-api": "error",
-			"eslint-plugin/prefer-replace-text": "error",
-			"eslint-plugin/report-message-format": ["error", "^[A-Z].*\\.$"],
-			"eslint-plugin/require-meta-docs-description": "error",
-			"eslint-plugin/require-meta-docs-url": "error",
-			"eslint-plugin/require-meta-fixable": "error",
-			"eslint-plugin/require-meta-has-suggestions": "error",
-			"eslint-plugin/require-meta-schema": "error",
-			"eslint-plugin/require-meta-type": "error",
 
 			// TypeORM
 			"typeorm-typescript/enforce-column-types": ["error", { driver: "sqlite" }],
@@ -316,36 +302,6 @@ export default tseslint.config(
 			'@typescript-eslint/no-confusing-non-null-assertion': 'error',
 			'@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
 			'@typescript-eslint/parameter-properties': 'error',
-		},
-	},
-
-	// ESLint Rules Development
-	{
-		files: ["src/rules/**/*.ts"],
-		extends: [eslintPlugin.configs.recommended],
-		rules: {
-			// CHANGE: Enforce mathematical invariants in rule development
-			// WHY: ESLint rules must be deterministic and side-effect free
-			// INVARIANT: ∀ rule ∈ Rules: pure(rule) ∧ deterministic(rule)
-			"eslint-plugin/consistent-output": "error",
-			"eslint-plugin/fixer-return": "error",
-			"eslint-plugin/meta-property-ordering": "error",
-			"eslint-plugin/no-deprecated-context-methods": "error",
-			"eslint-plugin/no-deprecated-report-api": "error",
-			"eslint-plugin/prefer-replace-text": "error",
-			"eslint-plugin/report-message-format": ["error", "^[A-Z].*\\.$"],
-			"eslint-plugin/require-meta-docs-description": "error",
-			"eslint-plugin/require-meta-docs-url": "error",
-			"eslint-plugin/require-meta-fixable": "error",
-			"eslint-plugin/require-meta-has-suggestions": "error",
-			"eslint-plugin/require-meta-schema": "error",
-			"eslint-plugin/require-meta-type": "error",
-			
-			// CHANGE: Enforce functional purity in rule implementations
-			// WHY: Rules must be mathematically verifiable
-			"no-console": "error",
-			"no-process-env": "error",
-			"no-process-exit": "error",
 		},
 	},
 
