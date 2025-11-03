@@ -25,11 +25,7 @@ import {
 	getNodeBuiltinExports,
 	isNodeBuiltinModule,
 } from "./node-builtin-exports.js";
-import {
-	extractExportNames,
-	findContextFile,
-	findModuleSymbol,
-} from "./typescript-compiler-helpers.js";
+import { findContextFile, findModuleSymbol } from "./typescript-compiler-helpers.js";
 
 /**
  * TypeScript Compiler service interface with Effect-based operations
@@ -56,6 +52,7 @@ export interface TypeScriptCompilerService {
 
 	readonly getExportsOfModule: (
 		modulePath: string,
+		containingFilePath?: string,
 	) => Effect.Effect<readonly string[], TypeScriptServiceError, never>;
 
 	readonly resolveModulePath: (
@@ -66,6 +63,7 @@ export interface TypeScriptCompilerService {
 	readonly getExportTypeSignature: (
 		modulePath: string,
 		exportName: string,
+		containingFilePath?: string,
 	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
 }
 
@@ -205,6 +203,50 @@ const tryGetBuiltinExports = (modulePath: string): readonly string[] | null => {
 	return getNodeBuiltinExports(modulePath) ?? null;
 };
 
+const resolveContextFileEffect = (
+	program: ts.Program,
+	modulePath: string,
+	containingFilePath?: string,
+): Effect.Effect<ts.SourceFile, TypeScriptServiceError, never> =>
+	Effect.try({
+		try: () => {
+			if (containingFilePath !== undefined) {
+				const direct = program.getSourceFile(containingFilePath);
+				if (direct !== undefined) {
+					return direct;
+				}
+			}
+			const fallback = findContextFile(program);
+			if (!fallback) {
+				throw new Error("context-file-not-found");
+			}
+			return fallback;
+		},
+		catch: () => makeModuleNotFoundError(modulePath),
+	});
+
+const resolveModuleSymbolEffect = (
+	checker: ts.TypeChecker,
+	program: ts.Program,
+	modulePath: string,
+	contextFile: ts.SourceFile,
+): Effect.Effect<ts.Symbol, TypeScriptServiceError, never> =>
+	Effect.try({
+		try: () => {
+			const symbol = findModuleSymbol(
+				checker,
+				program,
+				modulePath,
+				contextFile,
+			);
+			if (!symbol) {
+				throw new Error("module-symbol-not-found");
+			}
+			return symbol;
+		},
+		catch: () => makeModuleNotFoundError(modulePath),
+	});
+
 /**
  * Module exports effect with proper module resolution
  *
@@ -213,10 +255,11 @@ const tryGetBuiltinExports = (modulePath: string): readonly string[] | null => {
  * @effect TypeScript compiler API
  * @invariant ∀ module: resolvable(module) → exports(module) ≠ ∅
  */
-const createGetExportsOfModuleEffect =
+	const createGetExportsOfModuleEffect =
 	(checker: ts.TypeChecker | undefined, program: ts.Program | undefined) =>
 	(
 		modulePath: string,
+		containingFilePath?: string,
 	): Effect.Effect<readonly string[], TypeScriptServiceError, never> =>
 		Effect.gen(function* (_) {
 			const builtinExports = tryGetBuiltinExports(modulePath);
@@ -228,27 +271,40 @@ const createGetExportsOfModuleEffect =
 				return yield* _(Effect.fail(makeCheckerNotAvailableError()));
 			}
 
-			try {
-				const contextFile = findContextFile(program);
-				if (!contextFile) {
-					return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
+			const contextFile = yield* _(
+				resolveContextFileEffect(program, modulePath, containingFilePath),
+			);
+
+			const moduleSymbol = yield* _(
+				resolveModuleSymbolEffect(checker, program, modulePath, contextFile),
+			);
+
+			const exportSymbols = checker.getExportsOfModule(moduleSymbol);
+			const exportNames: string[] = [];
+
+			for (const symbol of exportSymbols) {
+				if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
+					let target: ts.Symbol | undefined;
+					try {
+						target = checker.getAliasedSymbol(symbol);
+					} catch {
+						target = undefined;
+					}
+
+					const hasTargetDeclarations =
+						target !== undefined &&
+						target.declarations !== undefined &&
+						target.declarations.length > 0;
+
+					if (!hasTargetDeclarations) {
+							continue;
+					}
 				}
 
-				const moduleSymbol = findModuleSymbol(
-					checker,
-					program,
-					modulePath,
-					contextFile,
-				);
-
-				if (!moduleSymbol) {
-					return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
-				}
-
-				return extractExportNames(checker, moduleSymbol);
-			} catch (_error) {
-				return yield* _(Effect.fail(makeModuleNotFoundError(modulePath)));
+				exportNames.push(symbol.getName());
 			}
+
+			return exportNames;
 		});
 
 /**
@@ -300,64 +356,58 @@ const createResolveModulePathEffect =
  * @purity SHELL
  * @complexity O(n) where n = number of exports
  */
-const createGetExportTypeSignatureEffect =
-	(checker: ts.TypeChecker | undefined, program: ts.Program | undefined) =>
-	(
+const createGetExportTypeSignatureEffect = (
+	checker: ts.TypeChecker | undefined,
+	program: ts.Program | undefined,
+) => {
+	if (!checker || !program) {
+		return (): Effect.Effect<
+			string | undefined,
+			TypeScriptServiceError,
+			never
+		> => Effect.succeed<string | undefined>(undefined);
+	}
+
+	return (
 		modulePath: string,
 		exportName: string,
+		containingFilePath?: string,
 	): Effect.Effect<string | undefined, TypeScriptServiceError, never> =>
-		Effect.sync(() => {
-			// CHANGE: Use Effect.sync instead of Effect.gen
-			// WHY: No async operations, pure synchronous computation
-			if (!checker || !program) {
-				return undefined;
-			}
+		pipe(
+			resolveContextFileEffect(program, modulePath, containingFilePath),
+			Effect.flatMap((contextFile) =>
+				pipe(
+					resolveModuleSymbolEffect(checker, program, modulePath, contextFile),
+					Effect.map((moduleSymbol) => ({ contextFile, moduleSymbol })),
+				),
+			),
+			Effect.flatMap(({ contextFile, moduleSymbol }) =>
+				Effect.sync(() => {
+					const exports = checker.getExportsOfModule(moduleSymbol);
+					const targetSymbol = exports.find(
+						(exp) => exp.getName() === exportName,
+					);
 
-			try {
-				const contextFile = findContextFile(program);
-				if (!contextFile) {
-					return undefined;
-				}
+					if (!targetSymbol) {
+						return undefined;
+					}
 
-				const moduleSymbol = findModuleSymbol(
-					checker,
-					program,
-					modulePath,
-					contextFile,
-				);
+					const symbolType = checker.getTypeOfSymbolAtLocation(
+						targetSymbol,
+						contextFile,
+					);
 
-				if (!moduleSymbol) {
-					return undefined;
-				}
-
-				const exports = checker.getExportsOfModule(moduleSymbol);
-				const targetSymbol = exports.find(
-					(exp) => exp.getName() === exportName,
-				);
-
-				if (!targetSymbol) {
-					return undefined;
-				}
-
-				// Get type of the symbol
-				const symbolType = checker.getTypeOfSymbolAtLocation(
-					targetSymbol,
-					contextFile,
-				);
-
-				// Format type as string
-				const signature = checker.typeToString(
-					symbolType,
-					undefined,
-					ts.TypeFormatFlags.NoTruncation |
-						ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope,
-				);
-
-				return signature;
-			} catch {
-				return undefined;
-			}
-		});
+					return checker.typeToString(
+						symbolType,
+						undefined,
+						ts.TypeFormatFlags.NoTruncation |
+							ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope,
+					);
+				}),
+			),
+			Effect.catchAll(() => Effect.succeed<string | undefined>(undefined)),
+		);
+};
 
 export const makeTypeScriptCompilerService = (
 	checker: ts.TypeChecker | undefined,

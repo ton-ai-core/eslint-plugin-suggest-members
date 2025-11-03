@@ -37,6 +37,7 @@ export const validateExportAccessEffect = (
 	node: object, // ESLint ImportSpecifier
 	exportName: string,
 	modulePath: string,
+	containingFilePath: string,
 ): Effect.Effect<
 	ExportValidationResult,
 	TypeScriptServiceError,
@@ -50,7 +51,13 @@ export const validateExportAccessEffect = (
 		isValidCandidate: isValidExportCandidate,
 	};
 
-	return baseValidationEffect(node, exportName, modulePath, config);
+	return baseValidationEffect(
+		node,
+		exportName,
+		modulePath,
+		containingFilePath,
+		config,
+	);
 };
 
 /**

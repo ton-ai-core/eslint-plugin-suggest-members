@@ -4,7 +4,7 @@
 // REF: FUNCTIONAL_ARCHITECTURE.md - RULES layer
 // INVARIANT: ∀ import: ¬exists(export) → suggest(similar_exports)
 
-import { createValidationRule } from "../../shell/shared/import-validation-base.js";
+import { createExportValidationRule } from "../../shell/shared/import-validation-rule-factory.js";
 import {
 	formatExportValidationMessage,
 	validateExportAccessEffect,
@@ -21,7 +21,7 @@ import { createFilesystemExportValidationEffect } from "../../shell/validation/f
  * @invariant ∀ import: validate(import) → Valid | ExportNotFound
  * @complexity O(n log n) where n = |available_exports|
  */
-export const suggestExportsRule = createValidationRule(
+export const suggestExportsRule = createExportValidationRule(
 	"suggest-exports",
 	"Suggest similar export names when importing non-existent exports",
 	"suggestExports",

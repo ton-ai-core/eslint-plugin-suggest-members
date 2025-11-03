@@ -51,6 +51,7 @@ export interface BaseValidationConfig<TResult> {
 const enrichSuggestionsWithSignatures = (
 	suggestions: readonly SuggestionWithScore[],
 	modulePath: string,
+	containingFilePath: string,
 	tsService: TypeScriptCompilerService,
 ): Effect.Effect<
 	readonly SuggestionWithScore[],
@@ -66,7 +67,11 @@ const enrichSuggestionsWithSignatures = (
 					Effect.gen(function* (_) {
 						// Try to get type signature for this export
 						const signature = yield* _(
-							tsService.getExportTypeSignature(modulePath, suggestion.name),
+							tsService.getExportTypeSignature(
+								modulePath,
+								suggestion.name,
+								containingFilePath,
+							),
 						);
 
 						// Return suggestion with signature if available
@@ -105,6 +110,7 @@ export const baseValidationEffect = <TResult>(
 	node: object,
 	name: string,
 	modulePath: string,
+	containingFilePath: string,
 	config: BaseValidationConfig<TResult>,
 ): Effect.Effect<
 	TResult,
@@ -136,11 +142,8 @@ export const baseValidationEffect = <TResult>(
 			// WHY: Need available exports for validation and suggestions
 			// PURITY: SHELL
 			const availableExports = yield* _(
-				tsService.getExportsOfModule(modulePath),
+				tsService.getExportsOfModule(modulePath, containingFilePath),
 			);
-
-			// CHANGE: Debug logging for troubleshooting
-			// WHY: Need to understand what exports are found
 
 			// CHANGE: Check if export exists
 			// WHY: Valid exports don't need suggestions
@@ -167,7 +170,12 @@ export const baseValidationEffect = <TResult>(
 			// WHY: Provide helpful type context in error messages
 			// PURITY: SHELL (calls TypeScript API)
 			const enrichedSuggestions = yield* _(
-				enrichSuggestionsWithSignatures(suggestions, modulePath, tsService),
+				enrichSuggestionsWithSignatures(
+					suggestions,
+					modulePath,
+					containingFilePath,
+					tsService,
+				),
 			);
 
 			// CHANGE: Return typed validation result

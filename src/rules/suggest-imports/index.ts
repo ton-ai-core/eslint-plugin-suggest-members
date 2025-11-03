@@ -3,7 +3,7 @@
 // PURITY: INFRASTRUCTURE (ESLint integration)
 // REF: FUNCTIONAL_ARCHITECTURE.md - RULES layer
 
-import { createValidationRule } from "../../shell/shared/import-validation-base.js";
+import { createValidationRule } from "../../shell/shared/import-validation-rule-factory.js";
 import {
 	formatImportValidationMessage,
 	validateImportSpecifierEffect,

@@ -5,77 +5,107 @@
  * PURITY: CORE - pure functions only
  */
 
+export interface ParsedExports {
+	readonly exported: readonly string[];
+	readonly locals: readonly string[];
+}
+
 /**
  * Parses exports from file content
  * @param content - File content to parse
- * @returns Array of exported names
+ * @returns Parsed export information
  * @purity PURE - no side effects
  */
-export const parseExportsFromContent = (content: string): string[] => {
-	const exports: string[] = [];
+export const parseExportsFromContent = (content: string): ParsedExports => {
+	const exportedNames: string[] = [];
+	const localNames: string[] = [];
 
-	// Parse named exports (export const/let/var/function/class name)
-	parseNamedExports(content, exports);
+	parseNamedExports(content, exportedNames, localNames);
+	parseExportLists(content, exportedNames, localNames);
+	parseDefaultExports(content, exportedNames);
+	parseLocalDeclarations(content, localNames);
 
-	// Parse export lists (export { name1, name2 })
-	parseExportLists(content, exports);
-
-	// Parse default exports
-	parseDefaultExports(content, exports);
-
-	return [...new Set(exports)]; // Remove duplicates
+	return {
+		exported: [...new Set(exportedNames)],
+		locals: [...new Set(localNames)],
+	};
 };
 
-/**
- * Parses named exports from content
- * @param content - File content
- * @param exports - Array to push exports to
- * @purity PURE - no side effects (mutates input array)
- */
-const parseNamedExports = (content: string, exports: string[]): void => {
+const parseNamedExports = (
+	content: string,
+	exported: string[],
+	locals: string[],
+): void => {
 	const namedExportRegex =
 		/export\s+(?:const|let|var|function|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
 	let match;
 	while ((match = namedExportRegex.exec(content)) !== null) {
 		const matchedName = match[1];
 		if (matchedName != null && matchedName.length > 0) {
-			exports.push(matchedName);
+			exported.push(matchedName);
+			locals.push(matchedName);
 		}
 	}
 };
 
-/**
- * Parses export lists from content
- * @param content - File content
- * @param exports - Array to push exports to
- * @purity PURE - no side effects (mutates input array)
- */
-const parseExportLists = (content: string, exports: string[]): void => {
+const parseExportLists = (
+	content: string,
+	exported: string[],
+	locals: string[],
+): void => {
 	const exportListRegex = /export\s*{([^}]+)}/g;
 	let match;
 	while ((match = exportListRegex.exec(content)) !== null) {
 		const exportList = match[1];
 		if (exportList != null && exportList.length > 0) {
-			const names = exportList.split(",").map((name) => {
-				const trimmed = name.trim();
-				// Handle "name as alias" syntax
-				const asIndex = trimmed.indexOf(" as ");
-				return asIndex > -1 ? trimmed.substring(0, asIndex).trim() : trimmed;
-			});
-			exports.push(...names.filter((name) => name.length > 0));
+			const names = exportList.split(",").map((name) => name.trim());
+			for (const entry of names) {
+				if (entry.length === 0) continue;
+				const [localName, exportedName] = splitAlias(entry);
+			if (exportedName.length > 0) {
+				exported.push(exportedName);
+			}
+			if (localName.length > 0 && localName !== exportedName) {
+				locals.push(localName);
+			}
+			}
 		}
 	}
 };
 
-/**
- * Parses default exports from content
- * @param content - File content
- * @param exports - Array to push exports to
- * @purity PURE - no side effects (mutates input array)
- */
-const parseDefaultExports = (content: string, exports: string[]): void => {
-	// Check for default export
+const parseDefaultExports = (content: string, exported: string[]): void => {
 	if (/export\s+default\s+/.test(content)) {
-		exports.push("default");
+		exported.push("default");
 	}
+};
+
+const parseLocalDeclarations = (content: string, locals: string[]): void => {
+	const functionDeclRegex = /(?:^|\s)function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
+	let match;
+	while ((match = functionDeclRegex.exec(content)) !== null) {
+		const matchedName = match[1];
+		if (matchedName != null && matchedName.length > 0) {
+			locals.push(matchedName);
+		}
+	}
+
+	const variableDeclRegex =
+		/(?:^|\s)(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+	while ((match = variableDeclRegex.exec(content)) !== null) {
+		const matchedName = match[1];
+		if (matchedName != null && matchedName.length > 0) {
+			locals.push(matchedName);
+		}
+	}
+};
+
+const splitAlias = (entry: string): readonly [string, string] => {
+	const asKeyword = entry.indexOf(" as ");
+	if (asKeyword === -1) {
+		return [entry.trim(), entry.trim()];
+	}
+
+	const localPart = entry.substring(0, asKeyword).trim();
+	const exportedPart = entry.substring(asKeyword + 4).trim();
+	return [localPart, exportedPart];
 };

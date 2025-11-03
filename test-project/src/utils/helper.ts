@@ -6,3 +6,5 @@ export function formatString(str: string): string {
 export function calculate(a: number, b: number): number {
 	return a + b;
 }
+
+export { forma1tString };

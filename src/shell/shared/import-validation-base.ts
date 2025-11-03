@@ -1,18 +1,11 @@
 // CHANGE: Base functionality for import validation rules
 // WHY: Eliminate code duplication between suggest-imports and suggest-exports
-// PURITY: SHELL (shared validation logic)
-// REF: FUNCTIONAL_ARCHITECTURE.md - DRY principle
-
 import type { TSESTree } from "@typescript-eslint/utils";
-import { AST_NODE_TYPES, ESLintUtils } from "@typescript-eslint/utils";
-import type {
-	RuleContext,
-	RuleModule,
-} from "@typescript-eslint/utils/ts-eslint";
+import { ESLintUtils } from "@typescript-eslint/utils";
+import type { RuleContext } from "@typescript-eslint/utils/ts-eslint";
 import type { Layer } from "effect";
 import { Effect } from "effect";
 
-import { isTypeOnlyImport } from "../../core/validators/index.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
 import type { FilesystemService } from "../services/filesystem.js";
 import type { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
@@ -22,6 +15,24 @@ import {
 	tryValidationWithFallback,
 } from "./validation-helpers.js";
 
+export type ModuleSpecifier =
+	| TSESTree.ImportSpecifier
+	| TSESTree.ExportSpecifier;
+
+export interface TypeScriptServiceLayerContext {
+	readonly layer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>;
+	readonly hasTypeScript: boolean;
+}
+
+interface ValidateModuleSpecifierParams<TResult> {
+	readonly importedNode: TSESTree.Node | undefined;
+	readonly specifier: ModuleSpecifier;
+	readonly modulePath: string;
+	readonly config: ImportValidationConfig<TResult>;
+	readonly context: RuleContext<string, readonly string[]>;
+	readonly tsService: TypeScriptServiceLayerContext;
+}
+
 /**
  * Base configuration for import validation rules
  *
@@ -29,9 +40,10 @@ import {
  */
 export interface ImportValidationConfig<TResult> {
 	readonly validateSpecifier: (
-		specifier: TSESTree.ImportSpecifier,
+		specifier: ModuleSpecifier,
 		importName: string,
 		modulePath: string,
+		containingFilePath: string,
 	) => Effect.Effect<
 		TResult,
 		TypeScriptServiceError,
@@ -46,34 +58,24 @@ export interface ImportValidationConfig<TResult> {
 	) => Effect.Effect<TResult, never, never>;
 	readonly formatMessage: (result: TResult) => string;
 	readonly messageId: string;
+	readonly skipWhenTypeScriptAvailable?: boolean;
 }
 
-/**
- * Validates import specifier using TypeScript service with filesystem fallback
- *
- * @param specifier - Import specifier AST node
- * @param modulePath - Path to the module being imported
- * @param config - Validation configuration
- * @param context - ESLint rule context
- * @param tsServiceLayer - TypeScript service layer
- *
- * @purity SHELL
- * @effect ESLint reporting, Effect execution
- * @complexity O(1) for validation, O(n) for suggestions where n = number of exports
- * @throws Never
- */
-export function validateImportSpecifierBase<TResult>(
-	specifier: TSESTree.ImportSpecifier,
-	modulePath: string,
-	config: ImportValidationConfig<TResult>,
-	context: RuleContext<string, readonly string[]>,
-	tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>,
-): void {
-	const imported = specifier.imported;
+const validateModuleSpecifier = <TResult>({
+	importedNode,
+	specifier,
+	modulePath,
+	config,
+	context,
+	tsService,
+}: ValidateModuleSpecifierParams<TResult>): void => {
+	if (!importedNode) return;
 
-	if (!isValidImportIdentifier(imported)) {
+	if (!isValidImportIdentifier(importedNode)) {
 		return;
 	}
+
+	const imported = importedNode;
 
 	executeImportValidation({
 		imported,
@@ -81,27 +83,91 @@ export function validateImportSpecifierBase<TResult>(
 		modulePath,
 		config,
 		context,
-		tsServiceLayer,
+		containingFilePath: context.filename || "",
+		tsService,
 	});
-}
+};
+
+const makeSpecifierValidator =
+	<TSpecifier extends ModuleSpecifier>(
+		getImportedNode: (specifier: TSpecifier) => TSESTree.Node | undefined,
+	) =>
+	<TResult>(
+		specifier: TSpecifier,
+		modulePath: string,
+		config: ImportValidationConfig<TResult>,
+		context: RuleContext<string, readonly string[]>,
+		tsService: TypeScriptServiceLayerContext,
+	): void => {
+		validateModuleSpecifier({
+			importedNode: getImportedNode(specifier),
+			specifier,
+			modulePath,
+			config,
+			context,
+			tsService,
+		});
+	};
+
+/**
+ * Validates import specifier using TypeScript service with filesystem fallback
+ *
+ * @purity SHELL
+ * @effect ESLint reporting, Effect execution
+ * @complexity O(1) for validation, O(n) for suggestions where n = number of exports
+ * @throws Never
+ */
+export const validateImportSpecifierBase =
+	makeSpecifierValidator<TSESTree.ImportSpecifier>(
+		(specifier) => specifier.imported,
+	);
+
+/**
+ * Validates export specifier in re-export statements using shared logic
+ *
+ * @purity SHELL
+ */
+export const validateExportSpecifierBase =
+	makeSpecifierValidator<TSESTree.ExportSpecifier>(
+		(specifier) => specifier.local,
+	);
 
 /**
  * Executes import validation with TypeScript service and fallback
  */
 const executeImportValidation = <TResult>(params: {
 	imported: TSESTree.Identifier;
-	specifier: TSESTree.ImportSpecifier;
+	specifier: ModuleSpecifier;
 	modulePath: string;
 	config: ImportValidationConfig<TResult>;
 	context: RuleContext<string, readonly string[]>;
-	tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>;
+	containingFilePath: string;
+	tsService: TypeScriptServiceLayerContext;
 }): void => {
-	const { imported, specifier, modulePath, config, context, tsServiceLayer } =
-		params;
+	const {
+		imported,
+		specifier,
+		modulePath,
+		config,
+		context,
+		containingFilePath,
+		tsService,
+	} = params;
 	const importName = imported.name;
+
+	if (config.skipWhenTypeScriptAvailable === true && tsService.hasTypeScript) {
+		return;
+	}
+
+	const { layer } = tsService;
 	const validationEffect = Effect.provide(
-		config.validateSpecifier(specifier, importName, modulePath),
-		tsServiceLayer,
+		config.validateSpecifier(
+			specifier,
+			importName,
+			modulePath,
+			containingFilePath,
+		),
+		layer,
 	);
 
 	tryValidationWithFallback({
@@ -114,68 +180,21 @@ const executeImportValidation = <TResult>(params: {
 	});
 };
 
-/**
- * Creates complete ESLint rule implementation using base validation
- *
- * @param ruleName - Name of the rule
- * @param description - Rule description
- * @param messageId - Message ID for ESLint
- * @param config - Validation configuration
- * @returns Complete ESLint rule module
- *
- * @purity SHELL
- * @complexity O(1) rule creation, O(n) per validation where n = imports
- */
-export function createValidationRule<TResult>(
-	_ruleName: string,
-	description: string,
-	messageId: string,
-	config: ImportValidationConfig<TResult>,
-): RuleModule<string, readonly string[]> {
-	return ESLintUtils.RuleCreator.withoutDocs({
-		meta: {
-			type: "problem",
-			docs: {
-				description,
-			},
-			messages: {
-				[messageId]: "{{message}}",
-			},
-			schema: [],
-		},
-		defaultOptions: [],
-		create(context: RuleContext<string, readonly string[]>) {
-			// CHANGE: Create TypeScript service layer once per file
-			// WHY: Reuse expensive TypeScript compiler setup
-			const tsServiceLayer = makeTypeScriptCompilerServiceLayer(
-				undefined,
-				undefined,
-			);
-
-			return {
-				ImportDeclaration(node: TSESTree.ImportDeclaration): void {
-					// CHANGE: Skip type-only imports
-					// WHY: Type imports have different validation rules
-					if (isTypeOnlyImport(node)) return;
-
-					const modulePath = node.source.value;
-					if (typeof modulePath !== "string") return;
-
-					// CHANGE: Validate each import specifier
-					// WHY: Each import needs individual validation
-					for (const specifier of node.specifiers) {
-						if (specifier.type === AST_NODE_TYPES.ImportSpecifier) {
-							validateImportSpecifierBase(
-								specifier,
-								modulePath,
-								config,
-								context,
-								tsServiceLayer,
-							);
-						}
-					}
-				},
-			};
-		},
-	});
-}
+export const createTypeScriptServiceLayerForContext = (
+	context: RuleContext<string, readonly string[]>,
+): TypeScriptServiceLayerContext => {
+	try {
+		const parserServices = ESLintUtils.getParserServices(context, false);
+		const program = parserServices.program;
+		const checker = program?.getTypeChecker();
+		return {
+			layer: makeTypeScriptCompilerServiceLayer(checker, program),
+			hasTypeScript: checker !== undefined && program !== undefined,
+		};
+	} catch (_error) {
+		return {
+			layer: makeTypeScriptCompilerServiceLayer(undefined, undefined),
+			hasTypeScript: false,
+		};
+	}
+};

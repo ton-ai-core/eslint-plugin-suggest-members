@@ -102,19 +102,30 @@ const validateInPossiblePaths = (
 			// CHANGE: Read file content and extract exports
 			// WHY: Need to check what the module actually exports
 			const content = readFileSync(filePath, "utf-8");
-			const exports = parseExportsFromContent(content);
+			const { exported, locals } = parseExportsFromContent(content);
 
-			// CHANGE: Check if import name exists in exports
-			// WHY: This is the main validation logic
-			if (exports.includes(importName)) {
+			// CHANGE: Check if export name is declared locally
+			// WHY: Distinguish alias typos from valid exports
+			const hasLocalDeclaration = locals.includes(importName);
+			if (exported.includes(importName) && hasLocalDeclaration) {
 				return makeValidExportResult();
 			}
+
+			const candidatePool = [...new Set([...exported, ...locals])];
+			const filteredCandidates = candidatePool.filter((candidate) => {
+				if (candidate.length === 0) return false;
+				if (candidate === importName) return false;
+				if (candidate.startsWith("_")) return false;
+				if (candidate.startsWith("__")) return false;
+				if (candidate === "default") return false;
+				return true;
+			});
 
 			// CHANGE: Find similar export names
 			// WHY: Provide helpful suggestions
 			const suggestionsWithScore = createSuggestionsWithScore(
 				importName,
-				exports,
+				filteredCandidates,
 			);
 			if (suggestionsWithScore.length > 0) {
 				return makeExportNotFoundResult(
