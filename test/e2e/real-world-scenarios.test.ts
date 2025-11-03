@@ -37,13 +37,17 @@ describe("Real-world E2E scenarios from test-project", () => {
 				filePath: resolve(testProjectDir, "src", "index.ts"),
 			});
 
-			// CHANGE: Verify rule executes without errors
-			// WHY: E2E test validates plugin integration, not rule behavior
-			// (Rule behavior is tested in integration tests)
 			expect(results).toHaveLength(1);
-
-			// Should execute without throwing errors
-			// Actual error detection is tested in integration tests
+			const messages = results[0]?.messages ?? [];
+			expect(messages).toHaveLength(2);
+			const hasHelperSuggestion = messages.some((message) =>
+				message.message.includes("./utils/helper"),
+			);
+			const hasFormatterSuggestion = messages.some((message) =>
+				message.message.includes("./utils/formatter"),
+			);
+			expect(hasHelperSuggestion).toBe(true);
+			expect(hasFormatterSuggestion).toBe(true);
 		});
 
 		it("should not report errors for valid code", async () => {

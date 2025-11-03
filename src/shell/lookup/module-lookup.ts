@@ -3,6 +3,7 @@
 // PURITY: SHELL (CORE + SHELL composition)
 // REF: FUNCTIONAL_ARCHITECTURE.md - SHELL layer
 
+import { dirname, join, resolve } from "node:path";
 import type { TSESTree } from "@typescript-eslint/utils";
 import { Effect } from "effect";
 import type {
@@ -11,6 +12,10 @@ import type {
 } from "../../core/index.js";
 import { findSimilarCandidates, isValidCandidate } from "../../core/index.js";
 import type { FilesystemError, FilesystemService } from "../index.js";
+import {
+	normalizeModuleSpecifier,
+	stripKnownExtension,
+} from "../shared/module-path-utils.js";
 
 // ModulePathValidationResult type moved to core/types/validation-types.ts to avoid duplication
 
@@ -32,38 +37,40 @@ export const findSimilarModulePaths = (
 	fsService: FilesystemService,
 ): Effect.Effect<readonly SuggestionWithScore[], FilesystemError> =>
 	Effect.gen(function* (_) {
-		// CHANGE: Extract directory path
-		// WHY: Need to search in same directory
-		const dirPath = currentFilePath.substring(
-			0,
-			currentFilePath.lastIndexOf("/"),
+		const normalizedRequested = requestedPath.replace(/\\/g, "/");
+		const lastSlash = normalizedRequested.lastIndexOf("/");
+		const requestedDirectory =
+			lastSlash === -1 ? "." : normalizedRequested.slice(0, lastSlash);
+		const currentDir = dirname(currentFilePath);
+
+		const targetDirectory = resolve(
+			currentDir,
+			requestedDirectory === "." ? "." : requestedDirectory,
 		);
 
-		// CHANGE: Read all files from directory
-		// WHY: Need file list for similarity matching
-		const files = yield* _(fsService.readDirectory(dirPath));
-
-		// CHANGE: Filter TypeScript/JavaScript files
-		// WHY: Only these can be imported
-		const tsFiles = files.filter((file) =>
-			/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file),
+		const directoryReadResult = yield* _(
+			Effect.either(fsService.readDirectory(targetDirectory)),
 		);
 
-		// CHANGE: Remove extensions for comparison
-		// WHY: Import paths typically don't include extensions
-		const moduleNames = tsFiles.map((file) =>
-			file.replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/, ""),
+		const files =
+			directoryReadResult._tag === "Right"
+				? directoryReadResult.right
+				: yield* _(fsService.readDirectory(currentDir));
+
+		const moduleCandidates = files
+			.filter((file) => /\.(ts|tsx|js|jsx|json|mjs|cjs)$/.test(file))
+			.map((file) => {
+				const absoluteCandidate = join(targetDirectory, file);
+				const withoutExtension = stripKnownExtension(absoluteCandidate);
+				return normalizeModuleSpecifier(currentDir, withoutExtension);
+			});
+
+		const uniqueCandidates = [...new Set(moduleCandidates)];
+		const validCandidates = uniqueCandidates.filter((candidate) =>
+			isValidCandidate(candidate, normalizedRequested),
 		);
 
-		// CHANGE: Filter valid candidates
-		// WHY: Remove invalid suggestions
-		const validCandidates = moduleNames.filter((candidate) =>
-			isValidCandidate(candidate, requestedPath),
-		);
-
-		// CHANGE: Find similar paths using CORE algorithms
-		// WHY: Pure function for testability
-		return findSimilarCandidates(requestedPath, validCandidates);
+		return findSimilarCandidates(normalizedRequested, validCandidates);
 	});
 
 /**

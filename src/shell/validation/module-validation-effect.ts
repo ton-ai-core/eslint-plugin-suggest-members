@@ -19,6 +19,10 @@ import {
 } from "../../core/index.js";
 import type { FilesystemError } from "../effects/errors.js";
 import { FilesystemServiceTag } from "../services/filesystem-effect.js";
+import {
+	normalizeModuleSpecifier,
+	stripKnownExtension,
+} from "../shared/module-path-utils.js";
 
 /**
  * Validates module path with Effect-based composition
@@ -108,28 +112,31 @@ const generateModuleSuggestions = (
 	},
 	resolvedPath: string,
 	requestedPath: string,
+	containingFile: string,
 ): Effect.Effect<readonly SuggestionWithScore[], FilesystemError> =>
 	Effect.gen(function* (_) {
-		const dirPath = path.dirname(resolvedPath);
-		const files = yield* _(fsService.readDirectory(dirPath));
+		const targetDirectory = path.dirname(resolvedPath);
+		const containingDir = path.dirname(containingFile);
+		const normalizedRequested = requestedPath.replace(/\\/g, "/");
+		const files = yield* _(fsService.readDirectory(targetDirectory));
 
 		const tsFiles = files.filter((file: string) =>
 			/\.(ts|tsx|js|jsx|json)$/.test(file),
 		);
 
-		const moduleNames = tsFiles.map((file: string) =>
-			file.replace(/\.(ts|tsx|js|jsx|json)$/, ""),
-		);
+		const moduleNames = tsFiles.map((file: string) => {
+			const absoluteCandidate = path.join(targetDirectory, file);
+			const withoutExtension = stripKnownExtension(absoluteCandidate);
+			return normalizeModuleSpecifier(containingDir, withoutExtension);
+		});
 
-		const validCandidates = moduleNames.filter((candidate: string) =>
-			isValidModuleCandidate(candidate, path.basename(requestedPath)),
+		const uniqueCandidates = [...new Set(moduleNames)];
+		const validCandidates = uniqueCandidates.filter((candidate: string) =>
+			isValidModuleCandidate(candidate, normalizedRequested),
 		);
 
 		return yield* _(
-			findSimilarCandidatesEffect(
-				path.basename(requestedPath),
-				validCandidates,
-			),
+			findSimilarCandidatesEffect(normalizedRequested, validCandidates),
 		);
 	});
 
@@ -171,7 +178,12 @@ export const validateModulePathEffect = (
 			}
 
 			const suggestions = yield* _(
-				generateModuleSuggestions(fsService, resolvedPath, requestedPath),
+				generateModuleSuggestions(
+					fsService,
+					resolvedPath,
+					requestedPath,
+					containingFile,
+				),
 			);
 			return makeModuleNotFoundResult(requestedPath, suggestions, node);
 		}),
@@ -220,8 +232,14 @@ export const isValidModuleCandidate = (
 	candidate: string,
 	userInput: string,
 ): boolean => {
-	// Skip hidden files
-	if (candidate.startsWith(".")) return false;
+	// Skip hidden files (but allow relative imports)
+	if (
+		candidate.startsWith(".") &&
+		!candidate.startsWith("./") &&
+		!candidate.startsWith("../")
+	) {
+		return false;
+	}
 
 	// Skip exact matches
 	if (candidate === userInput) return false;

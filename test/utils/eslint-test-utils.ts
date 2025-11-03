@@ -2,9 +2,12 @@
 // WHY: Eliminate code duplication between test files
 // PURITY: SHELL (test utilities)
 
+import { expect } from "@jest/globals";
+import type { Linter } from "eslint";
 import { ESLint } from "eslint";
 import { mkdirSync, rmSync, unlinkSync, writeFileSync } from "fs";
 import { join } from "path";
+import { TEST_CONFIG } from "../setup.js";
 
 /**
  * Configuration for ESLint test setup
@@ -75,6 +78,85 @@ export class TestFileManager {
 		}
 		this.tempFiles = [];
 	}
+}
+
+export interface TypeAwareESLintOptions {
+	readonly rules: Linter.RulesRecord;
+	readonly cwd?: string;
+}
+
+/**
+ * Create ESLint instance configured with TypeScript project awareness and provided rules
+ */
+export async function createTypeAwareESLint(
+	options: TypeAwareESLintOptions,
+): Promise<ESLint> {
+	const pluginModule = await import("../../src/index.js");
+	const plugin = pluginModule.default as any;
+
+	const tsParserModule = await import("@typescript-eslint/parser");
+	const parser = (tsParserModule as any).default ?? tsParserModule;
+
+	return new ESLint({
+		overrideConfigFile: true,
+		overrideConfig: [
+			{
+				files: ["**/*.ts"],
+				languageOptions: {
+					parser,
+					parserOptions: {
+						...TEST_CONFIG.PARSER_OPTIONS,
+						project: TEST_CONFIG.TSCONFIG_PATH,
+						tsconfigRootDir: TEST_CONFIG.PARSER_OPTIONS.tsconfigRootDir,
+					},
+				},
+				plugins: {
+					"@ton-ai-core/suggest-members": plugin,
+				},
+				rules: options.rules,
+			},
+		],
+		cwd: options.cwd ?? TEST_CONFIG.PARSER_OPTIONS.tsconfigRootDir,
+	});
+}
+
+/**
+ * Lint single file with provided ESLint instance and return collected messages
+ */
+export async function lintFileWithESLint(
+	eslint: ESLint,
+	filePath: string,
+): Promise<readonly Linter.LintMessage[]> {
+	const results = await eslint.lintFiles([filePath]);
+	return (results[0]?.messages ?? []) as readonly Linter.LintMessage[];
+}
+
+/**
+ * Expect exactly one lint message and apply assertion callback
+ */
+export function expectSingleLintMessage(
+	messages: readonly Linter.LintMessage[],
+	assertMessage: (message: Linter.LintMessage) => void,
+): void {
+	expect(messages).toHaveLength(1);
+	assertMessage(messages[0] as Linter.LintMessage);
+}
+
+export interface LintWithRulesOptions {
+	readonly rules: Linter.RulesRecord;
+	readonly filePath: string;
+	readonly assertMessage: (message: Linter.LintMessage) => void;
+}
+
+/**
+ * Convenience helper: create ESLint with rules, lint file, and assert single message
+ */
+export async function lintWithTypeAwareRules(
+	options: LintWithRulesOptions,
+): Promise<void> {
+	const eslint = await createTypeAwareESLint({ rules: options.rules });
+	const messages = await lintFileWithESLint(eslint, options.filePath);
+	expectSingleLintMessage(messages, options.assertMessage);
 }
 
 /**

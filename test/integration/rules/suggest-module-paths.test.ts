@@ -123,7 +123,7 @@ describe("suggest-module-paths rule", () => {
 				errors: [
 					{
 						messageId: "suggestModulePaths",
-						// Should suggest 'helper'
+						// Full message content verified in real-world E2E test
 					},
 				],
 			},
@@ -133,7 +133,7 @@ describe("suggest-module-paths rule", () => {
 				errors: [
 					{
 						messageId: "suggestModulePaths",
-						// Should suggest 'helper' or 'formatter'
+						// Full message content verified in real-world E2E test
 					},
 				],
 			},
@@ -143,7 +143,7 @@ describe("suggest-module-paths rule", () => {
 				errors: [
 					{
 						messageId: "suggestModulePaths",
-						// Should suggest nearby files
+						// Full message content verified in real-world E2E test
 					},
 				],
 			},
