@@ -48,6 +48,35 @@ const parseNamedExports = (
 	}
 };
 
+/**
+ * Processes a single export list match
+ * @param match - Regex match object
+ * @param exported - Exported names array to populate
+ * @param locals - Local names array to populate
+ */
+const processExportListMatch = (
+	match: RegExpExecArray,
+	exported: string[],
+	locals: string[],
+): void => {
+	const exportList = match[1];
+	if (exportList == null || exportList.length === 0) {
+		return;
+	}
+
+	const names = exportList.split(",").map((name) => name.trim());
+	for (const entry of names) {
+		if (entry.length === 0) continue;
+		const [localName, exportedName] = splitAlias(entry);
+		if (exportedName.length > 0) {
+			exported.push(exportedName);
+		}
+		if (localName.length > 0 && localName !== exportedName) {
+			locals.push(localName);
+		}
+	}
+};
+
 const parseExportLists = (
 	content: string,
 	exported: string[],
@@ -56,20 +85,7 @@ const parseExportLists = (
 	const exportListRegex = /export\s*{([^}]+)}/g;
 	let match;
 	while ((match = exportListRegex.exec(content)) !== null) {
-		const exportList = match[1];
-		if (exportList != null && exportList.length > 0) {
-			const names = exportList.split(",").map((name) => name.trim());
-			for (const entry of names) {
-				if (entry.length === 0) continue;
-				const [localName, exportedName] = splitAlias(entry);
-			if (exportedName.length > 0) {
-				exported.push(exportedName);
-			}
-			if (localName.length > 0 && localName !== exportedName) {
-				locals.push(localName);
-			}
-			}
-		}
+		processExportListMatch(match, exported, locals);
 	}
 };
 
@@ -79,24 +95,35 @@ const parseDefaultExports = (content: string, exported: string[]): void => {
 	}
 };
 
-const parseLocalDeclarations = (content: string, locals: string[]): void => {
-	const functionDeclRegex = /(?:^|\s)function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
+/**
+ * Helper function to process regex matches and add matched names to locals
+ * @param content - Content to search in
+ * @param regex - Regular expression to execute
+ * @param locals - Array to push matched names to
+ */
+const processRegexMatches = (
+	content: string,
+	regex: RegExp,
+	locals: string[],
+): void => {
 	let match;
-	while ((match = functionDeclRegex.exec(content)) !== null) {
+	while ((match = regex.exec(content)) !== null) {
 		const matchedName = match[1];
 		if (matchedName != null && matchedName.length > 0) {
 			locals.push(matchedName);
 		}
 	}
+};
+
+const parseLocalDeclarations = (content: string, locals: string[]): void => {
+	const functionDeclRegex =
+		/(?:^|\s)function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
 
 	const variableDeclRegex =
 		/(?:^|\s)(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
-	while ((match = variableDeclRegex.exec(content)) !== null) {
-		const matchedName = match[1];
-		if (matchedName != null && matchedName.length > 0) {
-			locals.push(matchedName);
-		}
-	}
+
+	processRegexMatches(content, functionDeclRegex, locals);
+	processRegexMatches(content, variableDeclRegex, locals);
 };
 
 const splitAlias = (entry: string): readonly [string, string] => {

@@ -1,3 +1,4 @@
+import { dirname, extname, relative } from "node:path";
 import type { TSESTree } from "@typescript-eslint/utils";
 import { AST_NODE_TYPES, ESLintUtils } from "@typescript-eslint/utils";
 import type {
@@ -5,9 +6,7 @@ import type {
 	RuleListener,
 	RuleModule,
 } from "@typescript-eslint/utils/ts-eslint";
-
 import { isTypeOnlyImport } from "../../core/validators/index.js";
-import { dirname, extname, relative } from "node:path";
 import type {
 	ImportValidationConfig,
 	ModuleSpecifier,
@@ -56,29 +55,29 @@ const makeListenerBuilder =
 			validateSpecifier,
 		} = descriptor;
 
-	const listener: Partial<RuleListener> = {
-		[eventName](node: TDeclaration): void {
-			if (shouldSkipNode?.(node) === true) return;
+		const listener: Partial<RuleListener> = {
+			[eventName](node: TDeclaration): void {
+				if (shouldSkipNode?.(node) === true) return;
 
-			const modulePath = normalizeModuleSpecifier(
-				getModulePath(node),
-				context.filename,
-			);
-			if (modulePath === undefined) return;
+				const modulePath = normalizeModuleSpecifier(
+					getModulePath(node),
+					context.filename,
+				);
+				if (modulePath === undefined) return;
 
-			for (const specifier of node.specifiers) {
-				if (specifier.type === specifierType) {
-					validateSpecifier(
-						specifier as TNode,
-						modulePath,
-						config,
-						context,
-						tsService,
-					);
+				for (const specifier of node.specifiers) {
+					if (specifier.type === specifierType) {
+						validateSpecifier(
+							specifier as TNode,
+							modulePath,
+							config,
+							context,
+							tsService,
+						);
+					}
 				}
-			}
-		},
-	};
+			},
+		};
 
 		return listener as RuleListener;
 	};
@@ -187,7 +186,10 @@ const normalizeModuleSpecifier = (
 			? rawRelative.slice(0, -extension.length)
 			: rawRelative;
 
-	if (!withoutExtension.startsWith("./") && !withoutExtension.startsWith("../")) {
+	if (
+		!withoutExtension.startsWith("./") &&
+		!withoutExtension.startsWith("../")
+	) {
 		withoutExtension = `./${withoutExtension}`;
 	}
 
