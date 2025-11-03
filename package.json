@@ -20,12 +20,7 @@
     "validate:rules": "npx ts-node scripts/validate-rules-simple.ts",
     "build": "npm run validate:rules && npm run build:meta && tsc --project tsconfig.src.json",
     "test": "npm run lint && npm run build && npx @ton-ai-core/vibecode-linter test/ && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",
-    "test:rules": "npm run validate:rules && npm test -- --testPathPattern=test/unit/rules",
-    "test:integration": "npm test -- --testPathPattern=test/integration",
-    "release": "npx ts-node scripts/release.ts",
-    "release:minor": "npx ts-node scripts/release.ts minor",
-    "release:major": "npx ts-node scripts/release.ts major",
-    "release:dry": "npx ts-node scripts/release.ts --dry-run",
+		"release": "npm run build && npm run lint && npm version patch && npm publish --access public",
     "lint": "npx @ton-ai-core/vibecode-linter src/"
   },
   "repository": {
@@ -96,6 +91,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@qwen-code/qwen-code": "^0.1.3-nightly.20251103.ff8a8ac6",
     "effect": "^3.18.4",
     "jscpd": "^4.0.5",
     "jscpd-sarif-reporter": "^4.0.3",
