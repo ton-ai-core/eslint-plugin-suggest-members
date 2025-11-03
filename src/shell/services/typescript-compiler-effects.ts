@@ -5,6 +5,7 @@ import type {
 	TypeScriptType,
 } from "../../core/types/typescript-types.js";
 import {
+	isTypeScriptNode,
 	isTypeScriptSymbol,
 	isTypeScriptType,
 } from "../../core/types/typescript-types.js";
@@ -300,6 +301,71 @@ export const createResolveModulePathEffect =
 			}),
 			Effect.flatten,
 		);
+
+/**
+ * Get symbol type signature effect
+ *
+ * CHANGE: Added symbol signature extraction for member suggestions
+ * WHY: Provide method/field type information in suggest-members diagnostics
+ *
+ * @purity SHELL
+ * @complexity O(1)
+ */
+export const createGetSymbolTypeSignatureEffect = (
+	checker: ts.TypeChecker | undefined,
+) => {
+	if (!checker) {
+		return (): Effect.Effect<
+			string | undefined,
+			TypeScriptServiceError,
+			never
+		> => Effect.succeed<string | undefined>(undefined);
+	}
+
+	return (
+		symbol: object,
+		fallbackNode?: object,
+	): Effect.Effect<string | undefined, TypeScriptServiceError, never> =>
+		createTypeScriptEffect(checker, (availableChecker) =>
+			Effect.sync(() => {
+				if (!isTypeScriptSymbol(symbol)) {
+					return undefined;
+				}
+
+				const tsSymbol = symbol as ts.Symbol;
+				const symbolNodes = [
+					tsSymbol.valueDeclaration,
+					...(tsSymbol.declarations ?? []),
+				].filter((node): node is ts.Declaration => node !== undefined);
+
+				const fallback =
+					fallbackNode !== undefined && isTypeScriptNode(fallbackNode)
+						? (fallbackNode as ts.Node)
+						: undefined;
+
+				const locationNode = (symbolNodes[0] ?? fallback) ?? undefined;
+				if (locationNode === undefined) {
+					return undefined;
+				}
+
+				try {
+					const symbolType = availableChecker.getTypeOfSymbolAtLocation(
+						tsSymbol,
+						locationNode,
+					);
+
+					return availableChecker.typeToString(
+						symbolType,
+						locationNode,
+						ts.TypeFormatFlags.NoTruncation |
+							ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope,
+					);
+				} catch {
+					return undefined;
+				}
+			}),
+		);
+};
 
 /**
  * Get export type signature effect

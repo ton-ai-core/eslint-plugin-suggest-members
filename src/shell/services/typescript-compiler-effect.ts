@@ -7,6 +7,7 @@ import type { Effect } from "effect";
 import { Context, Layer } from "effect";
 import type * as ts from "typescript";
 import type {
+	TypeScriptNode,
 	TypeScriptSymbol,
 	TypeScriptType,
 } from "../../core/types/typescript-types.js";
@@ -16,6 +17,7 @@ import {
 	createGetExportTypeSignatureEffect,
 	createGetPropertiesOfTypeEffect,
 	createGetSymbolAtLocationEffect,
+	createGetSymbolTypeSignatureEffect,
 	createGetTypeAtLocationEffect,
 	createResolveModulePathEffect,
 } from "./typescript-compiler-effects.js";
@@ -58,6 +60,24 @@ export interface TypeScriptCompilerService {
 		exportName: string,
 		containingFilePath?: string,
 	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
+
+	/**
+	 * Retrieves textual type signature for a symbol (method/property)
+	 *
+	 * @param symbol - TypeScript symbol representing the member
+	 * @param location - Optional fallback node for type resolution
+	 * @returns Effect with signature string or undefined when unavailable
+	 *
+	 * @purity SHELL
+	 * @effect Effect<string | undefined, TypeScriptServiceError, never>
+	 * @invariant signature => signature.length > 0
+	 * @complexity O(1)
+	 * @throws Never - ошибки типизированы в Effect
+	 */
+	readonly getSymbolTypeSignature: (
+		symbol: TypeScriptSymbol,
+		location?: TypeScriptNode,
+	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
 }
 
 /**
@@ -79,6 +99,7 @@ export const makeTypeScriptCompilerService = (
 	getExportsOfModule: createGetExportsOfModuleEffect(checker, program),
 	resolveModulePath: createResolveModulePathEffect(program),
 	getExportTypeSignature: createGetExportTypeSignatureEffect(checker, program),
+	getSymbolTypeSignature: createGetSymbolTypeSignatureEffect(checker),
 });
 
 /**

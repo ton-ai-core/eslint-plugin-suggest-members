@@ -14,6 +14,8 @@ import {
 	makeValidResult,
 	shouldSkipMemberExpression,
 } from "../../core/index.js";
+import type { SuggestionWithScore } from "../../core/types/domain-types.js";
+import { isTypeScriptNode } from "../../core/types/typescript-types.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
 import { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
 
@@ -96,6 +98,9 @@ export const validateMemberAccessEffectWithNodes = (
 			// WHY: Transform TypeScript symbols to strings
 			// PURITY: CORE (pure transformation)
 			const propertyNames = properties.map((prop) => prop.getName());
+			const propertyMap = new Map(
+				properties.map((prop) => [prop.getName(), prop] as const),
+			);
 
 			// CHANGE: Check if property exists
 			// WHY: Valid properties don't need suggestions
@@ -111,10 +116,48 @@ export const validateMemberAccessEffectWithNodes = (
 				findSimilarCandidatesEffect(propertyName, propertyNames),
 			);
 
+			// CHANGE: Enrich suggestions with member signatures
+			// WHY: Provide method/field type context in diagnostics
+			// PURITY: SHELL (TypeScript API access)
+			const enrichedSuggestions = yield* _(
+				Effect.all(
+					suggestions.map((suggestion) =>
+						Effect.gen(function* (_) {
+							const symbol = propertyMap.get(suggestion.name);
+							if (symbol === undefined) {
+								return suggestion;
+							}
+
+							const signature = yield* _(
+								tsService.getSymbolTypeSignature(
+									symbol,
+									isTypeScriptNode(tsNode) ? tsNode : undefined,
+								),
+							);
+
+							if (signature === undefined || signature.length === 0) {
+								return suggestion;
+							}
+
+							return {
+								name: suggestion.name,
+								score: suggestion.score,
+								signature,
+							} satisfies SuggestionWithScore;
+						}),
+					),
+					{ concurrency: "unbounded" },
+				),
+			);
+
 			// CHANGE: Return typed validation result
 			// WHY: Type-safe error handling without exceptions
 			// PURITY: CORE
-			return makeInvalidMemberResult(propertyName, suggestions, esTreeNode);
+			return makeInvalidMemberResult(
+				propertyName,
+				enrichedSuggestions,
+				esTreeNode,
+			);
 		}),
 	);
 
