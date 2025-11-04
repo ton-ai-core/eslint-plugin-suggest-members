@@ -20,7 +20,7 @@
     "validate:rules": "npx ts-node scripts/validate-rules-simple.ts",
     "build": "npm run validate:rules && npm run build:meta && tsc --project tsconfig.src.json",
     "test": "npm run lint && npm run build && npx @ton-ai-core/vibecode-linter test/ && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",
-		"release": "npm run build && npm run lint && npm version patch && npm publish --access public",
+		"release": "npm version patch && npm run build && npm run lint && git push origin main && git push origin v$(node -p \"require('./package.json').version\") && npm publish --access public",
     "lint": "npx @ton-ai-core/vibecode-linter src/"
   },
   "repository": {
