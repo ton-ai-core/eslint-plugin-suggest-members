@@ -20,6 +20,7 @@ import {
 import type { FilesystemError } from "../effects/errors.js";
 import { FilesystemServiceTag } from "../services/filesystem-effect.js";
 import {
+	MODULE_FILE_EXTENSIONS,
 	normalizeModuleSpecifier,
 	stripKnownExtension,
 } from "../shared/module-path-utils.js";
@@ -45,7 +46,16 @@ import {
  *
  * @purity CORE
  */
-const SUPPORTED_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json"] as const;
+// CHANGE: Align supported extensions with canonical module resolution list
+// WHY: Ensure validator mirrors TypeScript extension substitution for `.js`-authored specifiers
+// QUOTE(ТЗ): "не учитывая расширения файлов"
+// REF: user-message-2025-10-25
+// SOURCE: https://www.typescriptlang.org/docs/handbook/modules/reference.html#file-extension-substitution - "TypeScript can resolve to a .ts or .d.ts file even if the module specifier explicitly uses a .js file extension."
+// FORMAT THEOREM: ∀e ∈ SUPPORTED_EXTENSIONS: resolvable(e) → validImport
+// PURITY: CORE
+// INVARIANT: SUPPORTED_EXTENSIONS === MODULE_FILE_EXTENSIONS (read-only)
+// COMPLEXITY: O(1)
+const SUPPORTED_EXTENSIONS = MODULE_FILE_EXTENSIONS;
 
 /**
  * Generic file existence checker with extensions
@@ -159,6 +169,7 @@ export const validateModulePathEffect = (
 			const resolvedPath = yield* _(
 				fsService.resolveRelativePath(containingFile, requestedPath),
 			);
+			const resolvedWithoutExtension = stripKnownExtension(resolvedPath);
 
 			const pathExists = yield* _(fsService.fileExists(resolvedPath));
 			if (pathExists) {
@@ -166,13 +177,24 @@ export const validateModulePathEffect = (
 			}
 
 			const existsWithExt = yield* _(
-				checkPathWithExtensions(fsService, resolvedPath),
+				checkPathWithExtensions(fsService, resolvedWithoutExtension),
 			);
 			if (existsWithExt) {
 				return makeValidModuleResult();
 			}
 
-			const hasIndexFiles = yield* _(checkIndexFiles(fsService, resolvedPath));
+			// CHANGE: Evaluate index candidates from extension-normalized base path
+			// WHY: Avoid false negatives when `.js` specifiers map to `.ts` directories
+			// QUOTE(ТЗ): "не учитывая расширения файлов"
+			// REF: user-message-2025-10-25
+			// SOURCE: https://www.typescriptlang.org/docs/handbook/modules/reference.html#file-extension-substitution - "TypeScript always wants to resolve internally to a file that can provide type information, while ensuring that the runtime or bundler can use the same path to resolve to a file that provides a JavaScript implementation."
+			// FORMAT THEOREM: ∀p ∈ ModulePaths: dirExists(p) ∧ indexExists(p) → valid(p)
+			// PURITY: SHELL
+			// INVARIANT: resolvedWithoutExtension retains deterministic directory root
+			// COMPLEXITY: O(|MODULE_FILE_EXTENSIONS|)
+			const hasIndexFiles = yield* _(
+				checkIndexFiles(fsService, resolvedWithoutExtension),
+			);
 			if (hasIndexFiles) {
 				return makeValidModuleResult();
 			}
