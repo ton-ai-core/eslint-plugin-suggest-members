@@ -1,6 +1,6 @@
 {
   "name": "@ton-ai-core/eslint-plugin-suggest-members",
-  "version": "1.6.11",
+  "version": "1.6.12",
   "type": "module",
   "description": "ESLint plugin suggesting potential corrections when accessing non-existent object members in TypeScript.",
   "main": "dist/index.js",
