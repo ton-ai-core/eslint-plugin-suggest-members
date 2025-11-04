@@ -207,6 +207,19 @@ export const validateModulePathEffect = (
 					containingFile,
 				),
 			);
+			// CHANGE: Skip diagnostics when no module candidates exist
+			// WHY: Requirement to suppress messages if search yields zero matches
+			// QUOTE(ТЗ): "Сделай что бы он ничего не отображал если никого не нашёл"
+			// REF: user-message-2025-11-04
+			// SOURCE: https://eslint.org/docs/latest/extend/custom-rules#contextreport — "context.report() ... publishes a warning or error"
+			// FORMAT THEOREM: ∀s ∈ ModuleSuggestions: |s| = 0 → Valid(moduleImport)
+			// PURITY: SHELL
+			// EFFECT: Effect<ModulePathValidationResult, FilesystemError, FilesystemServiceTag>
+			// INVARIANT: Validator reports only when alternative paths exist
+			// COMPLEXITY: O(1) guard before constructing error result
+			if (suggestions.length === 0) {
+				return makeValidModuleResult();
+			}
 			return makeModuleNotFoundResult(requestedPath, suggestions, node);
 		}),
 	);

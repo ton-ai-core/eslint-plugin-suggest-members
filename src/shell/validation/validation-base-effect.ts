@@ -92,6 +92,58 @@ const enrichSuggestionsWithSignatures = (
 	});
 
 /**
+ * Builds invalid result effect with enrichment and empty-guard
+ *
+ * @purity SHELL
+ */
+interface InvalidResultEffectParams<TResult> {
+	readonly name: string;
+	readonly modulePath: string;
+	readonly node: object;
+	readonly containingFilePath: string;
+	readonly validCandidates: readonly string[];
+	readonly config: BaseValidationConfig<TResult>;
+	readonly tsService: TypeScriptCompilerService;
+}
+
+const buildInvalidResultEffect = <TResult>(
+	params: InvalidResultEffectParams<TResult>,
+): Effect.Effect<TResult, TypeScriptServiceError, never> =>
+	pipe(
+		findSimilarCandidatesEffect(params.name, params.validCandidates),
+		Effect.flatMap((suggestions) =>
+			// CHANGE: Skip diagnostics when similarity search returns zero candidates
+			// WHY: Respect requirement to suppress messages if no alternatives exist
+			// QUOTE(ТЗ): "Сделай что бы он ничего не отображал если никого не нашёл"
+			// REF: user-message-2025-11-04
+			// SOURCE: https://eslint.org/docs/latest/extend/custom-rules#contextreport — "context.report() ... publishes a warning or error"
+			// FORMAT THEOREM: ∀s ∈ Suggestions: |s| = 0 → Valid(importExport)
+			// PURITY: SHELL
+			// EFFECT: Effect<TResult, TypeScriptServiceError, TypeScriptCompilerServiceTag>
+			// INVARIANT: No invalid result emitted when candidate set empty
+			// COMPLEXITY: O(1) guard prior to enrichment
+			suggestions.length === 0
+				? Effect.succeed(params.config.makeValidResult())
+				: pipe(
+						enrichSuggestionsWithSignatures(
+							suggestions,
+							params.modulePath,
+							params.containingFilePath,
+							params.tsService,
+						),
+						Effect.map((enriched) =>
+							params.config.makeInvalidResult(
+								params.name,
+								params.modulePath,
+								enriched,
+								params.node,
+							),
+						),
+					),
+		),
+	);
+
+/**
  * Base validation effect with shared logic
  *
  * @param node - Import specifier node
@@ -159,33 +211,16 @@ export const baseValidationEffect = <TResult>(
 				config.isValidCandidate(candidate, name),
 			);
 
-			// CHANGE: Find similar candidates using pure Effect
-			// WHY: Separate similarity computation from validation logic
-			// PURITY: CORE
-			const suggestions = yield* _(
-				findSimilarCandidatesEffect(name, validCandidates),
-			);
-
-			// CHANGE: Enrich suggestions with type signatures
-			// WHY: Provide helpful type context in error messages
-			// PURITY: SHELL (calls TypeScript API)
-			const enrichedSuggestions = yield* _(
-				enrichSuggestionsWithSignatures(
-					suggestions,
+			return yield* _(
+				buildInvalidResultEffect({
+					name,
 					modulePath,
+					node,
 					containingFilePath,
+					validCandidates,
+					config,
 					tsService,
-				),
-			);
-
-			// CHANGE: Return typed validation result
-			// WHY: Type-safe error handling without exceptions
-			// PURITY: CORE
-			return config.makeInvalidResult(
-				name,
-				modulePath,
-				enrichedSuggestions,
-				node,
+				}),
 			);
 		}),
 	);

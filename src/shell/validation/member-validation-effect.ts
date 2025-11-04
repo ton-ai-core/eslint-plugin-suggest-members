@@ -138,17 +138,29 @@ const buildMemberValidationEffect = (
 			return pipe(
 				findSimilarCandidatesEffect(propertyName, metadata.names),
 				Effect.flatMap((suggestions) =>
-					pipe(
-						enrichMemberSuggestionsEffect(
-							suggestions,
-							metadata,
-							isTypeScriptNode(tsNode) ? tsNode : undefined,
-							tsService,
-						),
-						Effect.map((enriched) =>
-							makeInvalidMemberResult(propertyName, enriched, esTreeNode),
-						),
-					),
+					// CHANGE: Skip reporting when no candidates found
+					// WHY: Avoid empty diagnostics when similarity search yields no matches
+					// QUOTE(ТЗ): "Сделай что бы он ничего не отображал если никого не нашёл"
+					// REF: user-message-2025-11-04
+					// SOURCE: https://eslint.org/docs/latest/extend/custom-rules#contextreport — "context.report() ... publishes a warning or error"
+					// FORMAT THEOREM: ∀s ∈ Suggestions: |s| = 0 → Valid(memberAccess)
+					// PURITY: SHELL
+					// EFFECT: Effect<MemberValidationResult, TypeScriptServiceError, TypeScriptCompilerServiceTag>
+					// INVARIANT: No InvalidMember result emitted for empty suggestion sets
+					// COMPLEXITY: O(1) guard + existing enrichment cost
+					suggestions.length === 0
+						? Effect.succeed(makeValidResult())
+						: pipe(
+								enrichMemberSuggestionsEffect(
+									suggestions,
+									metadata,
+									isTypeScriptNode(tsNode) ? tsNode : undefined,
+									tsService,
+								),
+								Effect.map((enriched) =>
+									makeInvalidMemberResult(propertyName, enriched, esTreeNode),
+								),
+							),
 				),
 			);
 		}),
