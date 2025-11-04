@@ -13,42 +13,51 @@ const BASE_RULES: RuleConfig = {
 
 interface CreateESLintOptions {
 	readonly rules?: RuleConfig;
+	readonly cwd?: string | undefined;
 }
 
 export const createPluginTestESLint = (
 	options: CreateESLintOptions = {},
 ): ESLint =>
 	new ESLint({
-		baseConfig: {
-			languageOptions: {
-				parser: tsParser as never,
-				parserOptions: {
-					ecmaVersion: 2020,
-					sourceType: "module",
+		cwd: options.cwd,
+		overrideConfig: [
+			{
+				files: ["**/*.ts", "**/*.tsx"],
+				languageOptions: {
+					parser: tsParser as never,
+					parserOptions: {
+						ecmaVersion: 2020,
+						sourceType: "module",
+						projectService: {
+							allowDefaultProject: ["*.ts", "*.tsx"],
+						},
+					},
 				},
+				plugins: {
+					"suggest-members": plugin as never,
+				},
+				rules: {
+					...BASE_RULES,
+					...(options.rules ?? {}),
+				} satisfies RuleConfig,
 			},
-			plugins: {
-				"suggest-members": plugin as never,
-			},
-			rules: {
-				...BASE_RULES,
-				...(options.rules ?? {}),
-			} satisfies RuleConfig,
-		},
+		],
 		overrideConfigFile: true,
 	});
 
 interface LintTextOptions {
 	readonly filePath: string;
 	readonly eslintInstance?: ESLint;
+	readonly cwd?: string | undefined;
 }
 
 export const lintTextWithPlugin = async (
 	code: string,
-	{ filePath, eslintInstance }: LintTextOptions,
+	{ filePath, eslintInstance, cwd }: LintTextOptions,
 ): Promise<ESLint.LintResult[]> => {
-	const eslint = eslintInstance ?? createPluginTestESLint();
-	return eslint.lintText(code, { filePath });
+	const eslint = eslintInstance ?? createPluginTestESLint({ cwd });
+	return eslint.lintText(code, { filePath, warnIgnored: false });
 };
 
 export const suggestMembersPlugin = plugin;

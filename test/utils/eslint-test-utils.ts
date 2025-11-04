@@ -86,6 +86,14 @@ export interface TypeAwareESLintOptions {
 }
 
 /**
+ * Create file manager scoped to test-project source directory
+ */
+export const createTestProjectFileManager = (
+	tempDirName: string,
+): TestFileManager =>
+	new TestFileManager(tempDirName, TEST_CONFIG.TEST_PROJECT_SRC_DIR);
+
+/**
  * Create ESLint instance configured with TypeScript project awareness and provided rules
  */
 export async function createTypeAwareESLint(

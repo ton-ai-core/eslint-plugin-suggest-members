@@ -13,14 +13,16 @@ import type {
 } from "../../core/types/typescript-types.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
 import {
-	createGetExportsOfModuleEffect,
-	createGetExportTypeSignatureEffect,
 	createGetPropertiesOfTypeEffect,
 	createGetSymbolAtLocationEffect,
-	createGetSymbolTypeSignatureEffect,
 	createGetTypeAtLocationEffect,
-	createResolveModulePathEffect,
 } from "./typescript-compiler-effects.js";
+import {
+	createGetExportsOfModuleEffect,
+	createGetExportTypeSignatureEffect,
+	createResolveModulePathEffect,
+} from "./typescript-compiler-module-effects.js";
+import { createGetSymbolTypeSignatureEffect } from "./typescript-effect-utils.js";
 
 /**
  * TypeScript Compiler service interface with Effect-based operations

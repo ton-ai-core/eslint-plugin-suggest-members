@@ -17,6 +17,8 @@ export const TEST_CONFIG = {
 	// Test fixture paths
 	FIXTURES_DIR: resolve(__dirname, "fixtures"),
 	EXAMPLES_DIR: resolve(__dirname, "../example/src"),
+	TEST_PROJECT_DIR: resolve(__dirname, "../test-project"),
+	TEST_PROJECT_SRC_DIR: resolve(__dirname, "../test-project/src"),
 
 	// TypeScript configuration for tests
 	TSCONFIG_PATH: resolve(__dirname, "../tsconfig.test.json"),

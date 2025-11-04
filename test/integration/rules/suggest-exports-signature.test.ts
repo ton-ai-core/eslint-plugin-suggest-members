@@ -4,13 +4,13 @@
 
 import { describe, expect, it } from "@jest/globals";
 import {
+	createTestProjectFileManager,
 	lintWithTypeAwareRules,
-	TestFileManager,
 } from "../../utils/eslint-test-utils.js";
 
 describe("suggest-exports rule signatures", () => {
 	it("includes type signature information in suggestions", async () => {
-		const fileManager = new TestFileManager("test/temp-export-signature");
+		const fileManager = createTestProjectFileManager("temp-export-signature");
 		fileManager.setup();
 
 		try {

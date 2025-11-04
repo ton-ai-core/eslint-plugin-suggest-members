@@ -4,13 +4,13 @@
 
 import { describe, expect, it } from "@jest/globals";
 import {
+	createTestProjectFileManager,
 	lintWithTypeAwareRules,
-	TestFileManager,
 } from "../../utils/eslint-test-utils.js";
 
 describe("suggest-imports and suggest-exports deduplication", () => {
 	it("reports a single diagnostic when TypeScript services are available", async () => {
-		const fileManager = new TestFileManager("test/temp-dedup");
+		const fileManager = createTestProjectFileManager("temp-dedup");
 		fileManager.setup();
 
 		try {

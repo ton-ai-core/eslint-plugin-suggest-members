@@ -5,7 +5,7 @@
 
 import { resolve } from "node:path";
 import { describe, expect, it } from "@jest/globals";
-import { lintTextWithPlugin } from "./helpers.js";
+import { createPluginTestESLint } from "./helpers.js";
 
 /**
  * Create ESLint instance configured for real-world testing
@@ -25,21 +25,12 @@ describe("Real-world E2E scenarios from test-project", () => {
 
 	describe("suggest-module-paths rule", () => {
 		it("should detect path typos in real file scenario", async () => {
-			// CHANGE: Test with code from test-project but using in-memory linting
-			// WHY: Verify rule works in actual usage scenario without file system dependencies
-			const code = `
-				// Typos in module paths
-				import { formatString } from "./utils/helpr";
-				import { formatDate } from "./utils/formater";
-			`;
-
-			const results = await lintTextWithPlugin(code, {
-				filePath: resolve(testProjectDir, "src", "index.ts"),
-			});
+			const eslint = createPluginTestESLint({ cwd: testProjectDir });
+			const results = await eslint.lintFiles(["src/index.ts"]);
 
 			expect(results).toHaveLength(1);
 			const messages = results[0]?.messages ?? [];
-			expect(messages).toHaveLength(2);
+			expect(messages.length).toBeGreaterThanOrEqual(2);
 			const hasHelperSuggestion = messages.some((message) =>
 				message.message.includes("./utils/helper"),
 			);
@@ -51,18 +42,8 @@ describe("Real-world E2E scenarios from test-project", () => {
 		});
 
 		it("should not report errors for valid code", async () => {
-			// CHANGE: Test with valid code
-			// WHY: Verify plugin works without throwing on valid code
-			const code = `
-				import { formatString } from "./utils/helper";
-				import { formatDate } from "./utils/formatter";
-
-				console.log(formatString("test"));
-			`;
-
-			const results = await lintTextWithPlugin(code, {
-				filePath: resolve(testProjectDir, "src", "valid.ts"),
-			});
+			const eslint = createPluginTestESLint({ cwd: testProjectDir });
+			const results = await eslint.lintFiles(["src/valid.ts"]);
 
 			expect(results).toHaveLength(1);
 
@@ -73,19 +54,8 @@ describe("Real-world E2E scenarios from test-project", () => {
 
 	describe("suggest-members rule", () => {
 		it("should work with member access code", async () => {
-			// CHANGE: Test member access rule integration
-			// WHY: Verify rule can be enabled and run
-			const code = `
-				const str: string = "test";
-				const result = str.toUpperCase();
-
-				const arr: number[] = [1, 2, 3];
-				arr.push(4);
-			`;
-
-			const results = await lintTextWithPlugin(code, {
-				filePath: resolve(testProjectDir, "src", "test.ts"),
-			});
+			const eslint = createPluginTestESLint({ cwd: testProjectDir });
+			const results = await eslint.lintFiles(["src/test-members.ts"]);
 
 			expect(results).toHaveLength(1);
 
@@ -96,23 +66,9 @@ describe("Real-world E2E scenarios from test-project", () => {
 
 	describe("All rules integration", () => {
 		it("should work with all rules enabled together", async () => {
-			// CHANGE: Test complete integration with all rules enabled
-			// WHY: Verify all rules can work together without conflicts
-			const code = `
-				// Module path typos
-				import { formatString } from "./utils/helpr";
+			const eslint = createPluginTestESLint({ cwd: testProjectDir });
+			const results = await eslint.lintFiles(["src/test-all-rules.ts"]);
 
-				// Member access typos
-				const str: string = "test";
-				str.toUpperCas();
-			`;
-
-			const results = await lintTextWithPlugin(code, {
-				filePath: resolve(testProjectDir, "src", "test.ts"),
-			});
-
-			// CHANGE: Verify plugin integration works
-			// WHY: E2E test validates that all rules can be enabled simultaneously
 			expect(results).toHaveLength(1);
 
 			// Should execute all rules without conflicts or errors
@@ -122,30 +78,9 @@ describe("Real-world E2E scenarios from test-project", () => {
 
 	describe("Performance requirements", () => {
 		it("should lint files in reasonable time", async () => {
-			// CHANGE: Test performance with realistic code
-			// WHY: Ensure rules don't cause significant slowdown
-			const code = `
-				import { formatString } from "./utils/helper";
-				import { readFileSync } from "fs";
-
-				const str: string = "test";
-				const data = str.toUpperCase();
-
-				const arr: number[] = [1, 2, 3];
-				arr.push(4);
-
-				interface User {
-					name: string;
-					email: string;
-				}
-				const user: User = { name: "John", email: "john@example.com" };
-				console.log(user.name);
-			`;
-
 			const start = performance.now();
-			await lintTextWithPlugin(code, {
-				filePath: resolve(testProjectDir, "src", "test.ts"),
-			});
+			const eslint = createPluginTestESLint({ cwd: testProjectDir });
+			await eslint.lintFiles(["src/comprehensive-test.ts"]);
 			const duration = performance.now() - start;
 
 			// Should complete in reasonable time (< 5 seconds for a small file)

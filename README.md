@@ -114,6 +114,33 @@ export default [
 }
 ```
 
+### **Recommended Configuration (Simplified Setup)**
+Instead of manually configuring each rule, you can use our recommended configuration that automatically enables all rules:
+
+#### **ESLint v9+ (Flat Config)**
+```javascript
+// eslint.config.js
+import suggestMembers from "@ton-ai-core/eslint-plugin-suggest-members";
+
+export default [
+  {
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    plugins: { 
+      "suggest-members": suggestMembers 
+    },
+    ...suggestMembers.configs.recommended // Automatically enables all rules
+  }
+];
+```
+
+#### **ESLint v8 (Legacy Config)**
+```json
+{
+  "extends": ["plugin:@ton-ai-core/suggest-members/recommended"],
+  "plugins": ["@ton-ai-core/suggest-members"]
+}
+```
+
 ### **TypeScript Integration**
 ```json
 // tsconfig.json - Required for full functionality

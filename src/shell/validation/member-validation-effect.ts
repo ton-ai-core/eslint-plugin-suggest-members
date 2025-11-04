@@ -15,9 +15,144 @@ import {
 	shouldSkipMemberExpression,
 } from "../../core/index.js";
 import type { SuggestionWithScore } from "../../core/types/domain-types.js";
-import { isTypeScriptNode } from "../../core/types/typescript-types.js";
+import {
+	isTypeScriptNode,
+	type TypeScriptNode,
+	type TypeScriptSymbol,
+} from "../../core/types/typescript-types.js";
 import type { TypeScriptServiceError } from "../effects/errors.js";
 import { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-effect.js";
+
+interface MemberPropertyService {
+	getTypeAtLocation: (
+		node: object,
+	) => Effect.Effect<object, TypeScriptServiceError, never>;
+	getPropertiesOfType: (
+		type: object,
+	) => Effect.Effect<
+		readonly TypeScriptSymbol[],
+		TypeScriptServiceError,
+		never
+	>;
+}
+
+interface MemberSignatureService extends MemberPropertyService {
+	getSymbolTypeSignature: (
+		symbol: TypeScriptSymbol,
+		location?: TypeScriptNode,
+	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
+}
+
+interface PropertyMetadata {
+	readonly names: readonly string[];
+	readonly symbols: ReadonlyMap<string, TypeScriptSymbol>;
+}
+
+/**
+ * Collects property names and symbol map for a TypeScript node
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = |properties|
+ */
+const collectPropertyMetadata = (
+	tsNode: object,
+	tsService: MemberPropertyService,
+): Effect.Effect<PropertyMetadata, TypeScriptServiceError, never> =>
+	Effect.gen(function* (_) {
+		const objectType = yield* _(tsService.getTypeAtLocation(tsNode));
+		const properties = yield* _(tsService.getPropertiesOfType(objectType));
+
+		const names = properties.map((prop) => prop.getName());
+		const symbols = properties.reduce<ReadonlyMap<string, TypeScriptSymbol>>(
+			(map, symbol) => {
+				(map as Map<string, TypeScriptSymbol>).set(symbol.getName(), symbol);
+				return map;
+			},
+			new Map(),
+		);
+
+		return { names, symbols };
+	});
+
+/**
+ * Enriches suggestions with TypeScript signatures
+ *
+ * @purity SHELL
+ * @complexity O(n) where n = |suggestions|
+ */
+const enrichMemberSuggestionsEffect = (
+	suggestions: readonly SuggestionWithScore[],
+	metadata: PropertyMetadata,
+	tsNode: TypeScriptNode | undefined,
+	tsService: MemberSignatureService,
+): Effect.Effect<
+	readonly SuggestionWithScore[],
+	TypeScriptServiceError,
+	never
+> =>
+	Effect.all(
+		suggestions.map((suggestion) =>
+			Effect.gen(function* (_) {
+				const symbol = metadata.symbols.get(suggestion.name);
+				if (symbol === undefined) {
+					return suggestion;
+				}
+
+				const signature = yield* _(
+					tsService.getSymbolTypeSignature(symbol, tsNode),
+				);
+
+				if (signature === undefined || signature.length === 0) {
+					return suggestion;
+				}
+
+				return {
+					name: suggestion.name,
+					score: suggestion.score,
+					signature,
+				} satisfies SuggestionWithScore;
+			}),
+		),
+		{ concurrency: "unbounded" },
+	);
+
+/**
+ * Builds validation effect using collected metadata
+ *
+ * @purity SHELL
+ * @complexity O(n log n) where n = |properties|
+ */
+const buildMemberValidationEffect = (
+	propertyName: string,
+	esTreeNode: object,
+	tsNode: object,
+	tsService: MemberSignatureService,
+): Effect.Effect<MemberValidationResult, TypeScriptServiceError, never> =>
+	pipe(
+		collectPropertyMetadata(tsNode, tsService),
+		Effect.flatMap((metadata) => {
+			if (metadata.names.includes(propertyName)) {
+				return Effect.succeed(makeValidResult());
+			}
+
+			return pipe(
+				findSimilarCandidatesEffect(propertyName, metadata.names),
+				Effect.flatMap((suggestions) =>
+					pipe(
+						enrichMemberSuggestionsEffect(
+							suggestions,
+							metadata,
+							isTypeScriptNode(tsNode) ? tsNode : undefined,
+							tsService,
+						),
+						Effect.map((enriched) =>
+							makeInvalidMemberResult(propertyName, enriched, esTreeNode),
+						),
+					),
+				),
+			);
+		}),
+	);
 
 /**
  * Validates member access with Effect-based composition
@@ -79,84 +214,14 @@ export const validateMemberAccessEffectWithNodes = (
 				return makeValidResult();
 			}
 
-			// CHANGE: Get TypeScript service from context
-			// WHY: Dependency injection pattern
-			// PURITY: SHELL
 			const tsService = yield* _(TypeScriptCompilerServiceTag);
-
-			// CHANGE: Get type of object being accessed using TypeScript node
-			// WHY: Need type information for property validation
-			// PURITY: SHELL
-			const objectType = yield* _(tsService.getTypeAtLocation(tsNode));
-
-			// CHANGE: Get all properties of the type
-			// WHY: Need available properties for similarity matching
-			// PURITY: SHELL
-			const properties = yield* _(tsService.getPropertiesOfType(objectType));
-
-			// CHANGE: Extract property names using pure function
-			// WHY: Transform TypeScript symbols to strings
-			// PURITY: CORE (pure transformation)
-			const propertyNames = properties.map((prop) => prop.getName());
-			const propertyMap = new Map(
-				properties.map((prop) => [prop.getName(), prop] as const),
-			);
-
-			// CHANGE: Check if property exists
-			// WHY: Valid properties don't need suggestions
-			// PURITY: CORE
-			if (propertyNames.includes(propertyName)) {
-				return makeValidResult();
-			}
-
-			// CHANGE: Find similar candidates using pure Effect
-			// WHY: Separate similarity computation from validation logic
-			// PURITY: CORE
-			const suggestions = yield* _(
-				findSimilarCandidatesEffect(propertyName, propertyNames),
-			);
-
-			// CHANGE: Enrich suggestions with member signatures
-			// WHY: Provide method/field type context in diagnostics
-			// PURITY: SHELL (TypeScript API access)
-			const enrichedSuggestions = yield* _(
-				Effect.all(
-					suggestions.map((suggestion) =>
-						Effect.gen(function* (_) {
-							const symbol = propertyMap.get(suggestion.name);
-							if (symbol === undefined) {
-								return suggestion;
-							}
-
-							const signature = yield* _(
-								tsService.getSymbolTypeSignature(
-									symbol,
-									isTypeScriptNode(tsNode) ? tsNode : undefined,
-								),
-							);
-
-							if (signature === undefined || signature.length === 0) {
-								return suggestion;
-							}
-
-							return {
-								name: suggestion.name,
-								score: suggestion.score,
-								signature,
-							} satisfies SuggestionWithScore;
-						}),
-					),
-					{ concurrency: "unbounded" },
+			return yield* _(
+				buildMemberValidationEffect(
+					propertyName,
+					esTreeNode,
+					tsNode,
+					tsService,
 				),
-			);
-
-			// CHANGE: Return typed validation result
-			// WHY: Type-safe error handling without exceptions
-			// PURITY: CORE
-			return makeInvalidMemberResult(
-				propertyName,
-				enrichedSuggestions,
-				esTreeNode,
 			);
 		}),
 	);
