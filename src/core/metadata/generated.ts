@@ -12,7 +12,7 @@
  */
 export const PLUGIN_METADATA = {
 	name: "@ton-ai-core/eslint-plugin-suggest-members",
-	version: "1.6.16",
+	version: "1.6.17",
 } as const;
 
 /**
@@ -28,4 +28,4 @@ export const PLUGIN_NAME =
  *
  * @generated true
  */
-export const PLUGIN_VERSION = "1.6.16" as const;
+export const PLUGIN_VERSION = "1.6.17" as const;
