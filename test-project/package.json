@@ -8,11 +8,11 @@
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "*",
-    "@typescript-eslint/parser": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.3",
     "eslint": "*",
     "typescript": "*"
   },
   "dependencies": {
-    "@ton-ai-core/eslint-plugin-suggest-members": "file:../ton-ai-core-eslint-plugin-suggest-members-1.6.7.tgz"
+    "@ton-ai-core/eslint-plugin-suggest-members": "file:.."
   }
 }
