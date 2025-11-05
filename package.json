@@ -53,7 +53,7 @@
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
     "@eslint/js": "^9.39.1",
     "@jest/globals": "^30.2.0",
-    "@ton-ai-core/eslint-plugin-suggest-members-aliased": "npm:@ton-ai-core/eslint-plugin-suggest-members@^1.6.16",
+    "@ton-ai-core/eslint-plugin-suggest-members-aliased": "npm:@ton-ai-core/eslint-plugin-suggest-members@^1.6.17",
     "@ton-ai-core/vibecode-linter": "^1.0.5",
     "@ton/core": "^0.62.0",
     "@types/jest": "^30.0.0",
