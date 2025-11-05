@@ -6,25 +6,26 @@
 
 /**
  * Plugin metadata extracted from package.json
- * 
+ *
  * @generated true - auto-generated during build
  * @source package.json
  */
 export const PLUGIN_METADATA = {
 	name: "@ton-ai-core/eslint-plugin-suggest-members",
-	version: "1.6.15",
+	version: "1.6.16",
 } as const;
 
 /**
  * Plugin name constant
- * 
+ *
  * @generated true
  */
-export const PLUGIN_NAME = "@ton-ai-core/eslint-plugin-suggest-members" as const;
+export const PLUGIN_NAME =
+	"@ton-ai-core/eslint-plugin-suggest-members" as const;
 
 /**
  * Plugin version constant
- * 
+ *
  * @generated true
  */
-export const PLUGIN_VERSION = "1.6.15" as const;
+export const PLUGIN_VERSION = "1.6.16" as const;
