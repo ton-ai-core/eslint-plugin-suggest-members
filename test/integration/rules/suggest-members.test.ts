@@ -6,15 +6,19 @@ import * as tsParser from "@typescript-eslint/parser";
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import { suggestMembersRule } from "../../../src/rules/suggest-members/index.js";
 import { TEST_CONFIG } from "../../setup.js";
+import {
+	configureRuleTesterLifecycle,
+	createConfiguredRuleTester,
+} from "../../utils/rule-tester-base.js";
 
 // CHANGE: Configure rule tester for TypeScript
 // WHY: Enable testing with TypeScript parser and type information
-const ruleTester = new RuleTester({
-	languageOptions: {
-		parser: tsParser,
-		parserOptions: TEST_CONFIG.PARSER_OPTIONS,
-	},
-});
+configureRuleTesterLifecycle(RuleTester);
+
+const ruleTester = createConfiguredRuleTester(
+	tsParser,
+	TEST_CONFIG.PARSER_OPTIONS,
+);
 
 // CHANGE: Test rule with valid and invalid code examples
 // WHY: Verify complete rule functionality in realistic scenarios

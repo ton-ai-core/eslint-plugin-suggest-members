@@ -2,8 +2,8 @@
 // WHY: Test plugin works correctly when integrated with ESLint
 // PURITY: SHELL (test infrastructure)
 
-import { describe, expect, it } from "@jest/globals";
 import type { ESLint } from "eslint";
+import { describe, expect, it } from "vitest";
 import { lintTextWithPlugin, suggestMembersPlugin } from "./helpers.js";
 
 const expectValidESLintResults = (results: ESLint.LintResult[]): void => {

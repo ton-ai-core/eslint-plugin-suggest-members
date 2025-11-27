@@ -2,8 +2,8 @@
 // WHY: Prevent regressions where member suggestions omit TypeScript signatures
 // PURITY: SHELL (ESLint integration with filesystem effects)
 
-import { describe, expect, it } from "@jest/globals";
 import type { Linter } from "eslint";
+import { describe, expect, it } from "vitest";
 import {
 	createTestProjectFileManager,
 	lintWithTypeAwareRules,

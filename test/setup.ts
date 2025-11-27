@@ -1,5 +1,5 @@
 // CHANGE: Test environment setup
-// WHY: Configure Jest and testing utilities for ESLint plugin testing
+// WHY: Configure Vitest and testing utilities for ESLint plugin testing
 // PURITY: SHELL (test infrastructure)
 
 import { dirname, resolve } from "node:path";

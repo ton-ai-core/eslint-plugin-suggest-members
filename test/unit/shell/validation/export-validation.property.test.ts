@@ -3,8 +3,8 @@
 // PURITY: TEST (property-based testing)
 // REF: FUNCTIONAL_ARCHITECTURE.md - Property-based testing
 
-import { describe, it } from "@jest/globals";
 import * as fc from "fast-check";
+import { describe, expect, it } from "vitest";
 import { makeSimilarityScore } from "../../../../src/core/types/domain-types.js";
 import type { ExportValidationResult } from "../../../../src/core/types/validation-types.js";
 import {

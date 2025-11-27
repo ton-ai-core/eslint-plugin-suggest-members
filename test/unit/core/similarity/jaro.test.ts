@@ -2,7 +2,7 @@
 // WHY: Ensure mathematical correctness of similarity calculations
 // PURITY: SHELL (test infrastructure)
 
-// Jest globals are available without import
+import { describe, expect, it } from "vitest";
 import { jaro } from "../../../../src/core/similarity/jaro.js";
 
 describe("jaro similarity algorithm", () => {

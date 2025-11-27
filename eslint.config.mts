@@ -3,7 +3,7 @@ import js from "@eslint/js";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import suggestMembers from "@ton-ai-core/eslint-plugin-suggest-members-aliased";
 import importX from "eslint-plugin-import-x";
-import jestPlugin from "eslint-plugin-jest";
+import vitestPlugin from "eslint-plugin-vitest";
 import jsonc from "eslint-plugin-jsonc";
 import promisePlugin from "eslint-plugin-promise";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
@@ -43,7 +43,6 @@ export default tseslint.config(
 		],
 		plugins: {
 			"@eslint-community/eslint-comments": eslintComments,
-			jest: jestPlugin,
 			"@ton-ai-core/eslint-plugin-suggest-members": suggestMembers,
 			"typeorm-typescript": typeormTS,
 			sql,
@@ -341,19 +340,19 @@ export default tseslint.config(
 	// Тесты
 	{
 		files: ["**/*.spec.{ts,tsx}", "**/*.test.{ts,tsx}", "test/**/*.ts", "test/**/*.tsx"],
-		plugins: { jest: jestPlugin },
+		plugins: { vitest: vitestPlugin },
 		languageOptions: {
-			globals: { ...globals.jest },
+			globals: { ...globals.node, ...globals.vitest },
 			parserOptions: {
 				tsconfigRootDir: import.meta.dirname,
 				projectService: true,
 			},
 		},
 		rules: {
-			...(jestPlugin.configs.recommended?.rules ?? {}),
-			"jest/expect-expect": "off",
-			"jest/no-standalone-expect": "off",
-			"jest/no-conditional-expect": "off",
+			...(vitestPlugin.configs.recommended?.rules ?? {}),
+			"vitest/expect-expect": "off",
+			"vitest/no-standalone-expect": "off",
+			"vitest/no-conditional-expect": "off",
 			"@typescript-eslint/no-explicit-any": "off",
 			"@typescript-eslint/no-unsafe-assignment": "off",
 			"@typescript-eslint/no-unsafe-member-access": "off",

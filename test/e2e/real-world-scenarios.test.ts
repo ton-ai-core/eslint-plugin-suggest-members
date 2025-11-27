@@ -4,7 +4,7 @@
 // EFFECT: File system, ESLint, test-project files
 
 import { resolve } from "node:path";
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 import { createPluginTestESLint } from "./helpers.js";
 
 /**

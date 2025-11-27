@@ -11,9 +11,9 @@
 
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll } from "@jest/globals";
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import type { TSESLint } from "@typescript-eslint/utils";
+import { afterAll, describe, it } from "vitest";
 
 // CHANGE: Define type-safe option type for ESLint rules
 // WHY: Avoid using 'unknown' type as per CLAUDE.md guidelines
@@ -38,6 +38,25 @@ const __dirname = path.dirname(__filename);
 RuleTester.afterAll = afterAll;
 RuleTester.describe = describe;
 RuleTester.it = it;
+
+export const configureRuleTesterLifecycle = (
+	tester: typeof RuleTester,
+): void => {
+	tester.afterAll = afterAll;
+	tester.describe = describe;
+	tester.it = it;
+};
+
+export const createConfiguredRuleTester = (
+	parser: TSESLint.Parser.ParserModule,
+	parserOptions: TSESLint.ParserOptions,
+): RuleTester =>
+	new RuleTester({
+		languageOptions: {
+			parser,
+			parserOptions,
+		},
+	});
 
 /**
  * Математически верифицируемый тестер правил
@@ -84,7 +103,7 @@ export class MathematicalRuleTester<
 	 * @param tests - Тестовые случаи с инвариантами
 	 *
 	 * @pure false - выполняет тестовые эффекты
-	 * @effect Jest test runner, TypeScript compiler
+	 * @effect Vitest test runner, TypeScript compiler
 	 * @invariant ∀ valid ∈ tests.valid: ¬reports_error(rule, valid)
 	 * @invariant ∀ invalid ∈ tests.invalid: reports_error(rule, invalid)
 	 * @precondition rule.meta.type ∈ ['problem', 'suggestion', 'layout']

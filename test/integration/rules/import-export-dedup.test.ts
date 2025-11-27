@@ -2,7 +2,7 @@
 // WHY: Regression coverage for skipWhenTypeScriptAvailable semantics
 // PURITY: SHELL (ESLint integration)
 
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 import {
 	createTestProjectFileManager,
 	lintWithTypeAwareRules,

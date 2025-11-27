@@ -2,7 +2,7 @@
 // WHY: Test core functionality without code duplication
 // PURITY: SHELL (integration testing)
 
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 
 describe("suggest-exports integration", () => {
 	it("should load plugin without errors", async () => {

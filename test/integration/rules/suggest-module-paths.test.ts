@@ -5,28 +5,27 @@
 // INVARIANT: ∀ path: ¬exists(path) ∧ ∃similar: suggest(similar)
 
 import { resolve } from "node:path";
-import { afterAll } from "@jest/globals";
 import * as tsParser from "@typescript-eslint/parser";
 import { RuleTester } from "@typescript-eslint/rule-tester";
+import { describe } from "vitest";
 import { suggestModulePathsRule } from "../../../src/rules/suggest-module-paths/index.js";
 import { TEST_CONFIG } from "../../setup.js";
+import {
+	configureRuleTesterLifecycle,
+	createConfiguredRuleTester,
+} from "../../utils/rule-tester-base.js";
 
 // CHANGE: Configure RuleTester lifecycle
 // WHY: Proper cleanup after tests
-RuleTester.afterAll = afterAll;
+configureRuleTesterLifecycle(RuleTester);
 
 // CHANGE: Configure rule tester for module path testing
 // WHY: Enable testing with TypeScript parser and module resolution
-const ruleTester = new RuleTester({
-	languageOptions: {
-		parser: tsParser,
-		parserOptions: {
-			ecmaVersion: 2020,
-			sourceType: "module",
-			// Disable project service to avoid tsconfig issues
-			// This rule doesn't need type information
-		},
-	},
+const ruleTester = createConfiguredRuleTester(tsParser, {
+	ecmaVersion: 2020,
+	sourceType: "module",
+	// Disable project service to avoid tsconfig issues
+	// This rule doesn't need type information
 });
 
 /**

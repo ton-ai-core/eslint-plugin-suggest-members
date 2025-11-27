@@ -2,11 +2,11 @@
 // WHY: Eliminate code duplication between test files
 // PURITY: SHELL (test utilities)
 
-import { expect } from "@jest/globals";
 import type { Linter } from "eslint";
 import { ESLint } from "eslint";
-import { mkdirSync, rmSync, unlinkSync, writeFileSync } from "fs";
+import * as fs from "fs";
 import { join } from "path";
+import { expect } from "vitest";
 import { TEST_CONFIG } from "../setup.js";
 
 /**
@@ -34,7 +34,7 @@ export class TestFileManager {
 	 */
 	setup(): void {
 		try {
-			mkdirSync(this.tempDir, { recursive: true });
+			fs.mkdirSync(this.tempDir, { recursive: true });
 		} catch {
 			// Directory might already exist
 		}
@@ -45,7 +45,7 @@ export class TestFileManager {
 	 */
 	createFile(filename: string, content: string): string {
 		const filePath = join(this.tempDir, filename);
-		writeFileSync(filePath, content, "utf8");
+		fs.writeFileSync(filePath, content, "utf8");
 		this.tempFiles.push(filePath);
 		return filePath;
 	}
@@ -55,7 +55,7 @@ export class TestFileManager {
 	 */
 	createFileInCwd(filename: string, content: string): string {
 		const filePath = join(process.cwd(), filename);
-		writeFileSync(filePath, content, "utf8");
+		fs.writeFileSync(filePath, content, "utf8");
 		this.tempFiles.push(filePath);
 		return filePath;
 	}
@@ -66,13 +66,13 @@ export class TestFileManager {
 	cleanup(): void {
 		this.tempFiles.forEach((file) => {
 			try {
-				unlinkSync(file);
+				fs.unlinkSync(file);
 			} catch {
 				// File might not exist
 			}
 		});
 		try {
-			rmSync(this.tempDir, { recursive: true, force: true });
+			fs.rmSync(this.tempDir, { recursive: true, force: true });
 		} catch {
 			// Directory might not exist
 		}

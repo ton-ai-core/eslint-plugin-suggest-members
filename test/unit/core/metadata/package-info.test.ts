@@ -2,8 +2,8 @@
 // WHY: Ensure reliable metadata extraction from package.json
 // PURITY: SHELL (test infrastructure)
 
-// Jest globals are available without import
 import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
 import {
 	createPluginMeta,
 	extractPackageMetadata,

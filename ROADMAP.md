@@ -174,7 +174,7 @@
 - 🔥 **Алгоритмы схожести** (математика/CS)
 - 🎨 **IDE интеграция** (VS Code extensions)
 - 📊 **Performance optimization** (Node.js/TypeScript)
-- 🧪 **Testing infrastructure** (Jest/Property-based)
+- 🧪 **Testing infrastructure** (Vitest/Property-based)
 
 ---
 

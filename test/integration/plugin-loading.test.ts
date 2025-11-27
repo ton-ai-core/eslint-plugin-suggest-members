@@ -2,7 +2,7 @@
 // WHY: Verify plugin can be loaded and rules are available
 // PURITY: TEST (plugin loading verification)
 
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 import plugin from "../../src/index.js";
 
 describe("plugin loading", () => {

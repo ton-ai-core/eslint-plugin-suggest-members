@@ -2,7 +2,7 @@
 // WHY: Guard against regressions where suggest-exports omits TypeScript signatures
 // PURITY: SHELL (ESLint integration)
 
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 import {
 	createTestProjectFileManager,
 	lintWithTypeAwareRules,
