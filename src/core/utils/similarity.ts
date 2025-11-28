@@ -56,23 +56,47 @@ export const calculateSimilarity = (a: string, b: string): number => {
  * @purity PURE - no side effects
  */
 export const levenshteinDistance = (a: string, b: string): number => {
-	const matrix: number[][] = Array(b.length + 1)
-		.fill(null)
-		.map(() => Array(a.length + 1).fill(0) as number[]);
+	const matrix: number[][] = Array.from({ length: b.length + 1 }, () =>
+		Array.from({ length: a.length + 1 }, () => 0),
+	);
 
-	for (let i = 0; i <= a.length; i++) matrix[0]![i] = i;
-	for (let j = 0; j <= b.length; j++) matrix[j]![0] = j;
+	const ensureRow = (index: number): number[] => {
+		const row = matrix[index];
+		if (row === undefined) {
+			throw new Error(`Matrix invariant violated: missing row ${index}`);
+		}
+		return row;
+	};
+
+	const readValue = (row: readonly number[], column: number): number => {
+		const value = row[column];
+		if (value === undefined) {
+			throw new Error(
+				`Matrix invariant violated: missing value at column ${column}`,
+			);
+		}
+		return value;
+	};
+
+	const firstRow = ensureRow(0);
+	for (let i = 0; i <= a.length; i++) {
+		firstRow[i] = i;
+	}
 
 	for (let j = 1; j <= b.length; j++) {
+		const currentRow = ensureRow(j);
+		currentRow[0] = j;
+		const previousRow = ensureRow(j - 1);
+
 		for (let i = 1; i <= a.length; i++) {
 			const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
-			matrix[j]![i] = Math.min(
-				matrix[j]![i - 1]! + 1, // deletion
-				matrix[j - 1]![i]! + 1, // insertion
-				matrix[j - 1]![i - 1]! + indicator, // substitution
-			);
+			const deletion = readValue(currentRow, i - 1) + 1;
+			const insertion = readValue(previousRow, i) + 1;
+			const substitution = readValue(previousRow, i - 1) + indicator;
+
+			currentRow[i] = Math.min(deletion, insertion, substitution);
 		}
 	}
 
-	return matrix[b.length]![a.length]!;
+	return readValue(ensureRow(b.length), a.length);
 };

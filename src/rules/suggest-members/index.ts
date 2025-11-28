@@ -39,13 +39,13 @@ interface NodeMap {
 
 const createValidateAndReport =
 	(
-		tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>,
+		tsServiceLayer: Layer.Layer<TypeScriptCompilerServiceTag>,
 		context: RuleContext<"suggestMembers", []>,
 		esTreeNodeToTSNodeMap: NodeMap,
 	) =>
 	(node: TSESTree.MemberExpression): void => {
 		// Skip computed properties and optional chaining for now
-		if (node.computed === true || node.optional === true) return;
+		if (node.computed || node.optional) return;
 
 		// Skip if property is not an identifier
 		if (node.property.type !== AST_NODE_TYPES.Identifier) return;
@@ -99,7 +99,7 @@ export const suggestMembersRule = createRule({
 	create(context) {
 		const parserServices = ESLintUtils.getParserServices(context);
 		const program = parserServices.program;
-		const checker = program?.getTypeChecker();
+		const checker = program.getTypeChecker();
 		const esTreeNodeToTSNodeMap = parserServices.esTreeNodeToTSNodeMap;
 
 		const tsServiceLayer = makeTypeScriptCompilerServiceLayer(checker, program);

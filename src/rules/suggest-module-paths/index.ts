@@ -34,7 +34,7 @@ const createRule = ESLintUtils.RuleCreator(
  */
 const createValidateAndReport =
 	(
-		fsServiceLayer: Layer.Layer<FilesystemServiceTag, never, never>,
+		fsServiceLayer: Layer.Layer<FilesystemServiceTag>,
 		currentFilePath: string,
 		context: RuleContext<"suggestModulePaths", []>,
 	) =>

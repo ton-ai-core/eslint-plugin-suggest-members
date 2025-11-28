@@ -26,21 +26,17 @@ import { TypeScriptCompilerServiceTag } from "../services/typescript-compiler-ef
 interface MemberPropertyService {
 	getTypeAtLocation: (
 		node: object,
-	) => Effect.Effect<object, TypeScriptServiceError, never>;
+	) => Effect.Effect<object, TypeScriptServiceError>;
 	getPropertiesOfType: (
 		type: object,
-	) => Effect.Effect<
-		readonly TypeScriptSymbol[],
-		TypeScriptServiceError,
-		never
-	>;
+	) => Effect.Effect<readonly TypeScriptSymbol[], TypeScriptServiceError>;
 }
 
 interface MemberSignatureService extends MemberPropertyService {
 	getSymbolTypeSignature: (
 		symbol: TypeScriptSymbol,
 		location?: TypeScriptNode,
-	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
+	) => Effect.Effect<string | undefined, TypeScriptServiceError>;
 }
 
 interface PropertyMetadata {
@@ -57,7 +53,7 @@ interface PropertyMetadata {
 const collectPropertyMetadata = (
 	tsNode: object,
 	tsService: MemberPropertyService,
-): Effect.Effect<PropertyMetadata, TypeScriptServiceError, never> =>
+): Effect.Effect<PropertyMetadata, TypeScriptServiceError> =>
 	Effect.gen(function* (_) {
 		const objectType = yield* _(tsService.getTypeAtLocation(tsNode));
 		const properties = yield* _(tsService.getPropertiesOfType(objectType));
@@ -85,11 +81,7 @@ const enrichMemberSuggestionsEffect = (
 	metadata: PropertyMetadata,
 	tsNode: TypeScriptNode | undefined,
 	tsService: MemberSignatureService,
-): Effect.Effect<
-	readonly SuggestionWithScore[],
-	TypeScriptServiceError,
-	never
-> =>
+): Effect.Effect<readonly SuggestionWithScore[], TypeScriptServiceError> =>
 	Effect.all(
 		suggestions.map((suggestion) =>
 			Effect.gen(function* (_) {
@@ -127,7 +119,7 @@ const buildMemberValidationEffect = (
 	esTreeNode: object,
 	tsNode: object,
 	tsService: MemberSignatureService,
-): Effect.Effect<MemberValidationResult, TypeScriptServiceError, never> =>
+): Effect.Effect<MemberValidationResult, TypeScriptServiceError> =>
 	pipe(
 		collectPropertyMetadata(tsNode, tsService),
 		Effect.flatMap((metadata) => {

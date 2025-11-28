@@ -24,9 +24,7 @@ import { createTypeScriptEffect } from "./typescript-effect-utils.js";
  */
 export const createGetSymbolAtLocationEffect =
 	(checker: ts.TypeChecker | undefined) =>
-	(
-		node: object,
-	): Effect.Effect<TypeScriptSymbol, TypeScriptServiceError, never> =>
+	(node: object): Effect.Effect<TypeScriptSymbol, TypeScriptServiceError> =>
 		createTypeScriptEffect(checker, (checker) =>
 			pipe(
 				Effect.sync(() => checker.getSymbolAtLocation(node as ts.Node)),
@@ -50,9 +48,7 @@ export const createGetSymbolAtLocationEffect =
  */
 export const createGetTypeAtLocationEffect =
 	(checker: ts.TypeChecker | undefined) =>
-	(
-		node: object,
-	): Effect.Effect<TypeScriptType, TypeScriptServiceError, never> =>
+	(node: object): Effect.Effect<TypeScriptType, TypeScriptServiceError> =>
 		createTypeScriptEffect(checker, (checker) =>
 			pipe(
 				Effect.try({
@@ -78,11 +74,7 @@ export const createGetPropertiesOfTypeEffect =
 	(checker: ts.TypeChecker | undefined) =>
 	(
 		type: object,
-	): Effect.Effect<
-		readonly TypeScriptSymbol[],
-		TypeScriptServiceError,
-		never
-	> =>
+	): Effect.Effect<readonly TypeScriptSymbol[], TypeScriptServiceError> =>
 		createTypeScriptEffect(checker, (checker) =>
 			pipe(
 				Effect.try({

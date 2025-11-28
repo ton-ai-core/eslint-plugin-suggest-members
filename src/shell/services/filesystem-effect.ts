@@ -22,20 +22,16 @@ import {
 export interface FilesystemService {
 	readonly readDirectory: (
 		dirPath: string,
-	) => Effect.Effect<readonly string[], FilesystemError, never>;
+	) => Effect.Effect<readonly string[], FilesystemError>;
 
-	readonly fileExists: (
-		filePath: string,
-	) => Effect.Effect<boolean, never, never>;
+	readonly fileExists: (filePath: string) => Effect.Effect<boolean>;
 
 	readonly resolveRelativePath: (
 		from: string,
 		to: string,
-	) => Effect.Effect<string, never, never>;
+	) => Effect.Effect<string>;
 
-	readonly getFileExtension: (
-		filePath: string,
-	) => Effect.Effect<string, never, never>;
+	readonly getFileExtension: (filePath: string) => Effect.Effect<string>;
 }
 
 /**
@@ -116,8 +112,6 @@ export const makeFilesystemService = (): FilesystemService => ({
  * @complexity O(1)
  * @throws Never
  */
-export const makeFilesystemServiceLayer = (): Layer.Layer<
-	FilesystemServiceTag,
-	never,
-	never
-> => Layer.succeed(FilesystemServiceTag, makeFilesystemService());
+export const makeFilesystemServiceLayer =
+	(): Layer.Layer<FilesystemServiceTag> =>
+		Layer.succeed(FilesystemServiceTag, makeFilesystemService());

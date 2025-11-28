@@ -38,7 +38,7 @@ export const resolveContextFileEffect = (
 	program: ts.Program,
 	modulePath: string,
 	containingFilePath?: string,
-): Effect.Effect<ts.SourceFile, TypeScriptServiceError, never> =>
+): Effect.Effect<ts.SourceFile, TypeScriptServiceError> =>
 	Effect.try({
 		try: () => {
 			if (containingFilePath !== undefined) {
@@ -61,7 +61,7 @@ export const resolveModuleSymbolEffect = (
 	program: ts.Program,
 	modulePath: string,
 	contextFile: ts.SourceFile,
-): Effect.Effect<ts.Symbol, TypeScriptServiceError, never> =>
+): Effect.Effect<ts.Symbol, TypeScriptServiceError> =>
 	Effect.try({
 		try: () => {
 			const symbol = findModuleSymbol(
@@ -122,7 +122,7 @@ export const createGetExportsOfModuleEffect =
 	(
 		modulePath: string,
 		containingFilePath?: string,
-	): Effect.Effect<readonly string[], TypeScriptServiceError, never> =>
+	): Effect.Effect<readonly string[], TypeScriptServiceError> =>
 		Effect.gen(function* (_) {
 			const builtinExports = tryGetBuiltinExports(modulePath);
 			if (builtinExports) {
@@ -158,7 +158,7 @@ export const createResolveModulePathEffect =
 	(
 		modulePath: string,
 		containingFile: string,
-	): Effect.Effect<string, TypeScriptServiceError, never> =>
+	): Effect.Effect<string, TypeScriptServiceError> =>
 		pipe(
 			Effect.sync(() => {
 				if (!program) {
@@ -203,7 +203,7 @@ export const createGetExportTypeSignatureEffect = (
 	modulePath: string,
 	exportName: string,
 	containingFilePath?: string,
-) => Effect.Effect<string | undefined, TypeScriptServiceError, never>) => {
+) => Effect.Effect<string | undefined, TypeScriptServiceError>) => {
 	if (!checker || !program) {
 		return createUndefinedResultEffect<string>();
 	}
@@ -212,7 +212,7 @@ export const createGetExportTypeSignatureEffect = (
 		modulePath: string,
 		exportName: string,
 		containingFilePath?: string,
-	): Effect.Effect<string | undefined, TypeScriptServiceError, never> =>
+	): Effect.Effect<string | undefined, TypeScriptServiceError> =>
 		pipe(
 			resolveContextFileEffect(program, modulePath, containingFilePath),
 			Effect.flatMap((contextFile) =>

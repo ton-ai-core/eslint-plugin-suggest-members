@@ -21,8 +21,8 @@ export const createTypeScriptEffect = <T>(
 	checker: ts.TypeChecker | undefined,
 	operation: (
 		checker: ts.TypeChecker,
-	) => Effect.Effect<T, TypeScriptServiceError, never>,
-): Effect.Effect<T, TypeScriptServiceError, never> =>
+	) => Effect.Effect<T, TypeScriptServiceError>,
+): Effect.Effect<T, TypeScriptServiceError> =>
 	pipe(
 		Effect.sync(() => {
 			if (!checker) {
@@ -44,7 +44,7 @@ export const createGetSymbolTypeSignatureEffect = (
 ): ((
 	symbol: object,
 	fallbackNode?: object,
-) => Effect.Effect<string | undefined, TypeScriptServiceError, never>) => {
+) => Effect.Effect<string | undefined, TypeScriptServiceError>) => {
 	if (!checker) {
 		return createUndefinedResultEffect<string>();
 	}
@@ -52,7 +52,7 @@ export const createGetSymbolTypeSignatureEffect = (
 	return (
 		symbol: object,
 		fallbackNode?: object,
-	): Effect.Effect<string | undefined, TypeScriptServiceError, never> =>
+	): Effect.Effect<string | undefined, TypeScriptServiceError> =>
 		createTypeScriptEffect(checker, (availableChecker) =>
 			Effect.sync(() => {
 				if (!isTypeScriptSymbol(symbol)) {
@@ -96,5 +96,5 @@ export const createGetSymbolTypeSignatureEffect = (
 
 export const createUndefinedResultEffect =
 	<T>() =>
-	(): Effect.Effect<T | undefined, TypeScriptServiceError, never> =>
+	(): Effect.Effect<T | undefined, TypeScriptServiceError> =>
 		Effect.succeed<T | undefined>(undefined);

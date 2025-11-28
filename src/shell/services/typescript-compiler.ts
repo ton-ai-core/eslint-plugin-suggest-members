@@ -189,11 +189,15 @@ export const makeTypeScriptCompilerService = (
 	// WHY: Not used in this legacy service, only in Effect-based service
 	// NOTE: This service is legacy and will be deprecated
 	const getExportTypeSignature = (
-		_modulePath: string,
-		_exportName: string,
-	): Effect.Effect<string | undefined, TypeScriptServiceError> =>
-		// Not implemented in legacy service
-		Effect.succeed(undefined);
+		modulePath: string,
+		exportName: string,
+	): Effect.Effect<string | undefined, TypeScriptServiceError> => {
+		// CHANGE: Preserve legacy signature while returning empty result
+		// WHY: Interface requires parameters even if not used in legacy path
+		void modulePath;
+		void exportName;
+		return Effect.succeed(undefined);
+	};
 
 	return {
 		getSymbolAtLocation,

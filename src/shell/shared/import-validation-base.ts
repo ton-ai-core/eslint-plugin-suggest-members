@@ -20,7 +20,7 @@ export type ModuleSpecifier =
 	| TSESTree.ExportSpecifier;
 
 export interface TypeScriptServiceLayerContext {
-	readonly layer: Layer.Layer<TypeScriptCompilerServiceTag, never, never>;
+	readonly layer: Layer.Layer<TypeScriptCompilerServiceTag>;
 	readonly hasTypeScript: boolean;
 }
 
@@ -55,7 +55,7 @@ export interface ImportValidationConfig<TResult> {
 		importName: string,
 		modulePath: string,
 		contextFilePath: string,
-	) => Effect.Effect<TResult, never, never>;
+	) => Effect.Effect<TResult>;
 	readonly formatMessage: (result: TResult) => string;
 	readonly messageId: string;
 	readonly skipWhenTypeScriptAvailable?: boolean;
@@ -186,12 +186,12 @@ export const createTypeScriptServiceLayerForContext = (
 	try {
 		const parserServices = ESLintUtils.getParserServices(context, false);
 		const program = parserServices.program;
-		const checker = program?.getTypeChecker();
+		const checker = program.getTypeChecker();
 		return {
 			layer: makeTypeScriptCompilerServiceLayer(checker, program),
-			hasTypeScript: checker !== undefined && program !== undefined,
+			hasTypeScript: true,
 		};
-	} catch (_error) {
+	} catch {
 		return {
 			layer: makeTypeScriptCompilerServiceLayer(undefined, undefined),
 			hasTypeScript: false,

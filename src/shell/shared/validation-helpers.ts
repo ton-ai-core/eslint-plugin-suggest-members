@@ -40,11 +40,7 @@ export const isValidImportIdentifier = (
  */
 export const tryValidationWithFallback = <TResult>(
 	params: BaseValidationParams<TResult> & {
-		readonly validationEffect: Effect.Effect<
-			TResult,
-			TypeScriptServiceError,
-			never
-		>;
+		readonly validationEffect: Effect.Effect<TResult, TypeScriptServiceError>;
 	},
 ): void => {
 	const {
@@ -58,7 +54,7 @@ export const tryValidationWithFallback = <TResult>(
 	try {
 		const result = Effect.runSync(validationEffect);
 		reportValidationResult(imported, config, context, result);
-	} catch (_error) {
+	} catch {
 		tryFallbackValidationOnly({
 			imported,
 			importName,
@@ -109,7 +105,7 @@ export const tryFallbackValidationOnly = <TResult>(
 
 		const result = Effect.runSync(fallbackEffect);
 		reportValidationResult(imported, config, context, result);
-	} catch (_fallbackError) {
+	} catch {
 		// CHANGE: Silently handle fallback errors
 		// WHY: Don't break linting if both methods fail
 	}

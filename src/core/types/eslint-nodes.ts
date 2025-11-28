@@ -122,11 +122,7 @@ export type ESLintNode =
  */
 export const isMemberExpression = (
 	node: BaseESLintNode,
-): node is ESLintMemberExpression =>
-	typeof node === "object" &&
-	node !== null &&
-	"type" in node &&
-	node.type === "MemberExpression";
+): node is ESLintMemberExpression => node.type === "MemberExpression";
 
 /**
  * Type guard for ImportSpecifier
@@ -138,11 +134,7 @@ export const isMemberExpression = (
  */
 export const isImportSpecifier = (
 	node: BaseESLintNode,
-): node is ESLintImportSpecifier =>
-	typeof node === "object" &&
-	node !== null &&
-	"type" in node &&
-	node.type === "ImportSpecifier";
+): node is ESLintImportSpecifier => node.type === "ImportSpecifier";
 
 /**
  * Type guard for ImportDeclaration
@@ -154,11 +146,7 @@ export const isImportSpecifier = (
  */
 export const isImportDeclaration = (
 	node: BaseESLintNode,
-): node is ESLintImportDeclaration =>
-	typeof node === "object" &&
-	node !== null &&
-	"type" in node &&
-	node.type === "ImportDeclaration";
+): node is ESLintImportDeclaration => node.type === "ImportDeclaration";
 
 /**
  * Type guard for CallExpression
@@ -170,11 +158,7 @@ export const isImportDeclaration = (
  */
 export const isCallExpression = (
 	node: BaseESLintNode,
-): node is ESLintCallExpression =>
-	typeof node === "object" &&
-	node !== null &&
-	"type" in node &&
-	node.type === "CallExpression";
+): node is ESLintCallExpression => node.type === "CallExpression";
 
 /**
  * Type guard for Identifier
@@ -185,7 +169,4 @@ export const isCallExpression = (
  * @throws Never
  */
 export const isIdentifier = (node: BaseESLintNode): node is ESLintIdentifier =>
-	typeof node === "object" &&
-	node !== null &&
-	"type" in node &&
 	node.type === "Identifier";

@@ -42,7 +42,7 @@ export interface PluginMeta {
  * @postcondition result.name === packageJson.name ∧ result.version === packageJson.version
  */
 export const extractPackageMetadata = (
-	packageJson: Record<string, string | undefined>,
+	packageJson: Readonly<Record<string, string | null | undefined>>,
 ): Effect.Effect<PackageMetadata, Error> =>
 	Effect.try({
 		try: () => {
@@ -51,19 +51,28 @@ export const extractPackageMetadata = (
 			const name = packageJson["name"];
 			const version = packageJson["version"];
 
-			if (name === undefined || name === null || name.length === 0) {
+			if (typeof name !== "string" || name.length === 0) {
 				throw new Error("Invalid package.json: missing or empty name field");
 			}
 
-			if (version === undefined || version === null || version.length === 0) {
+			if (typeof version !== "string" || version.length === 0) {
 				throw new Error("Invalid package.json: missing or empty version field");
 			}
 
 			// CHANGE: Extract metadata with optional fields
 			// WHY: Support partial package.json structures
-			const description = packageJson["description"];
-			const author = packageJson["author"];
-			const license = packageJson["license"];
+			const description =
+				typeof packageJson["description"] === "string"
+					? packageJson["description"]
+					: undefined;
+			const author =
+				typeof packageJson["author"] === "string"
+					? packageJson["author"]
+					: undefined;
+			const license =
+				typeof packageJson["license"] === "string"
+					? packageJson["license"]
+					: undefined;
 
 			const metadata: PackageMetadata = {
 				name,

@@ -53,11 +53,7 @@ const enrichSuggestionsWithSignatures = (
 	modulePath: string,
 	containingFilePath: string,
 	tsService: TypeScriptCompilerService,
-): Effect.Effect<
-	readonly SuggestionWithScore[],
-	TypeScriptServiceError,
-	never
-> =>
+): Effect.Effect<readonly SuggestionWithScore[], TypeScriptServiceError> =>
 	Effect.gen(function* (_) {
 		// CHANGE: Get type signatures for each suggestion
 		// WHY: Provide context about what the suggested export is
@@ -108,7 +104,7 @@ interface InvalidResultEffectParams<TResult> {
 
 const buildInvalidResultEffect = <TResult>(
 	params: InvalidResultEffectParams<TResult>,
-): Effect.Effect<TResult, TypeScriptServiceError, never> =>
+): Effect.Effect<TResult, TypeScriptServiceError> =>
 	pipe(
 		findSimilarCandidatesEffect(params.name, params.validCandidates),
 		Effect.flatMap((suggestions) =>

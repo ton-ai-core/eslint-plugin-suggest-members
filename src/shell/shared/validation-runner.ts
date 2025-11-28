@@ -23,12 +23,12 @@ import { Effect } from "effect";
  * Configuration for validation effect runner
  */
 interface ValidationConfig<T extends { _tag: string }, E> {
-	readonly validationEffect: Effect.Effect<T, E, never>;
+	readonly validationEffect: Effect.Effect<T, E>;
 	readonly context: RuleContext<string, readonly []>;
 	readonly reportNode: TSESTree.Node;
 	readonly messageId: string;
 	readonly formatMessage: (result: T) => string;
-	readonly fallbackEffect?: Effect.Effect<T, E, never>;
+	readonly fallbackEffect?: Effect.Effect<T, E>;
 }
 
 export const runValidationEffect = <T extends { _tag: string }, E>(
@@ -58,7 +58,7 @@ export const runValidationEffect = <T extends { _tag: string }, E>(
 			messageId: messageId as never,
 			data: { message },
 		});
-	} catch (_error) {
+	} catch {
 		// CHANGE: Try fallback validation if available
 		// WHY: TypeScript service may fail, use filesystem as backup
 		if (fallbackEffect) {

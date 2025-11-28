@@ -31,7 +31,7 @@ export const createFilesystemExportValidationEffect =
 		importName: string,
 		modulePath: string,
 		contextFilePath: string,
-	): Effect.Effect<ExportValidationResult, never, never> =>
+	): Effect.Effect<ExportValidationResult> =>
 		Effect.succeed(
 			validateExportInModule(
 				importName,
@@ -57,7 +57,7 @@ const validateExportInModule = (
 	importName: string,
 	modulePath: string,
 	contextFilePath: string,
-	_filesystemService: FilesystemService,
+	filesystemService: FilesystemService,
 ): ExportValidationResult => {
 	try {
 		// CHANGE: Only validate local modules (relative paths)
@@ -81,7 +81,12 @@ const validateExportInModule = (
 			resolvedPath + "/index.js",
 		];
 
-		return validateInPossiblePaths(importName, modulePath, possiblePaths);
+		return validateInPossiblePaths(
+			importName,
+			modulePath,
+			possiblePaths,
+			filesystemService,
+		);
 	} catch {
 		// CHANGE: Return valid on any error
 		// WHY: Don't break linting if validation fails
@@ -96,9 +101,15 @@ const validateInPossiblePaths = (
 	importName: string,
 	modulePath: string,
 	possiblePaths: string[],
+	filesystemService: FilesystemService,
 ): ExportValidationResult => {
 	for (const filePath of possiblePaths) {
 		try {
+			const exists = Effect.runSync(filesystemService.fileExists(filePath));
+			if (!exists) {
+				continue;
+			}
+
 			// CHANGE: Read file content and extract exports
 			// WHY: Need to check what the module actually exports
 			const content = readFileSync(filePath, "utf-8");

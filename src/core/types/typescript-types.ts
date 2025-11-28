@@ -86,9 +86,11 @@ export interface TypeScriptChecker {
  * @complexity O(1)
  * @throws Never
  */
-export const isTypeScriptSymbol = (value: object): value is TypeScriptSymbol =>
-	typeof value === "object" &&
+export const isTypeScriptSymbol = (
+	value: object | null | undefined,
+): value is TypeScriptSymbol =>
 	value !== null &&
+	value !== undefined &&
 	"name" in value &&
 	typeof (value as { name: string }).name === "string" &&
 	"getName" in value &&
@@ -102,9 +104,11 @@ export const isTypeScriptSymbol = (value: object): value is TypeScriptSymbol =>
  * @complexity O(1)
  * @throws Never
  */
-export const isTypeScriptType = (value: object): value is TypeScriptType =>
-	typeof value === "object" &&
+export const isTypeScriptType = (
+	value: object | null | undefined,
+): value is TypeScriptType =>
 	value !== null &&
+	value !== undefined &&
 	"flags" in value &&
 	typeof (value as { flags: number }).flags === "number" &&
 	"getProperties" in value &&
@@ -119,9 +123,11 @@ export const isTypeScriptType = (value: object): value is TypeScriptType =>
  * @complexity O(1)
  * @throws Never
  */
-export const isTypeScriptNode = (value: object): value is TypeScriptNode =>
-	typeof value === "object" &&
+export const isTypeScriptNode = (
+	value: object | null | undefined,
+): value is TypeScriptNode =>
 	value !== null &&
+	value !== undefined &&
 	"kind" in value &&
 	typeof (value as { kind: number }).kind === "number" &&
 	"getText" in value &&

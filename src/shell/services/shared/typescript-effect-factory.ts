@@ -23,7 +23,6 @@ export const getNodeName = (node: TSESTree.Node): string => {
 	if (
 		"property" in node &&
 		typeof node.property === "object" &&
-		node.property !== null &&
 		"name" in node.property &&
 		typeof node.property.name === "string"
 	) {

@@ -3,6 +3,7 @@
 // PURITY: CORE
 // REF: CLAUDE.md - pure predicates in CORE layer
 
+import { match } from "ts-pattern";
 import {
 	type BaseESLintNode,
 	type ESLintImportDeclaration,
@@ -35,7 +36,7 @@ export function shouldSkipMemberExpression(node: object): boolean {
 
 	// CHANGE: Skip computed member access (obj[prop])
 	// WHY: Cannot validate dynamic property access
-	if (memberNode.computed === true) return true;
+	if (memberNode.computed) return true;
 
 	// CHANGE: Skip nested member expressions (obj.a.b - skip the outer one)
 	// WHY: Inner validation is sufficient
@@ -156,35 +157,34 @@ export function isModulePath(value: string): boolean {
  * extractModuleName('lodash') → 'lodash'
  */
 export function extractModuleName(importPath: string): string {
-	// CHANGE: Handle scoped packages
-	// WHY: Scoped packages like @org/package need special handling
-	if (importPath.startsWith("@")) {
-		const parts = importPath.split("/");
-		if (parts.length >= 2) {
-			return `${parts[0]}/${parts[1]}`;
-		}
-		return importPath;
-	}
-
-	// CHANGE: Handle relative paths
-	// WHY: Extract filename without extension
-	if (importPath.startsWith("./") || importPath.startsWith("../")) {
-		const parts = importPath.split("/");
-		const filename = parts[parts.length - 1] ?? "";
-		return filename.replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/, "");
-	}
-
-	// CHANGE: Handle node built-ins
-	// WHY: Remove 'node:' prefix
-	if (importPath.startsWith("node:")) {
-		return importPath.slice(5);
-	}
-
-	// CHANGE: Handle package names
-	// WHY: First segment is package name
-	const firstSlash = importPath.indexOf("/");
-	if (firstSlash === -1) return importPath;
-	return importPath.slice(0, firstSlash);
+	return match(importPath)
+		.when(
+			(path) => path.startsWith("@"),
+			(path) => {
+				const [scope, packageName] = path.split("/");
+				if (scope !== undefined && packageName !== undefined) {
+					return `${scope}/${packageName}`;
+				}
+				return path;
+			},
+		)
+		.when(
+			(path) => path.startsWith("./") || path.startsWith("../"),
+			(path) => {
+				const parts = path.split("/");
+				const filename = parts[parts.length - 1] ?? "";
+				return filename.replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/, "");
+			},
+		)
+		.when(
+			(path) => path.startsWith("node:"),
+			(path) => path.slice(5),
+		)
+		.otherwise((path) => {
+			const firstSlash = path.indexOf("/");
+			if (firstSlash === -1) return path;
+			return path.slice(0, firstSlash);
+		});
 }
 
 /**

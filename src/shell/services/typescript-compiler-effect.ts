@@ -33,35 +33,31 @@ import { createGetSymbolTypeSignatureEffect } from "./typescript-effect-utils.js
 export interface TypeScriptCompilerService {
 	readonly getSymbolAtLocation: (
 		node: object,
-	) => Effect.Effect<TypeScriptSymbol, TypeScriptServiceError, never>;
+	) => Effect.Effect<TypeScriptSymbol, TypeScriptServiceError>;
 
 	readonly getTypeAtLocation: (
 		node: object,
-	) => Effect.Effect<TypeScriptType, TypeScriptServiceError, never>;
+	) => Effect.Effect<TypeScriptType, TypeScriptServiceError>;
 
 	readonly getPropertiesOfType: (
 		type: object,
-	) => Effect.Effect<
-		readonly TypeScriptSymbol[],
-		TypeScriptServiceError,
-		never
-	>;
+	) => Effect.Effect<readonly TypeScriptSymbol[], TypeScriptServiceError>;
 
 	readonly getExportsOfModule: (
 		modulePath: string,
 		containingFilePath?: string,
-	) => Effect.Effect<readonly string[], TypeScriptServiceError, never>;
+	) => Effect.Effect<readonly string[], TypeScriptServiceError>;
 
 	readonly resolveModulePath: (
 		modulePath: string,
 		containingFile: string,
-	) => Effect.Effect<string, TypeScriptServiceError, never>;
+	) => Effect.Effect<string, TypeScriptServiceError>;
 
 	readonly getExportTypeSignature: (
 		modulePath: string,
 		exportName: string,
 		containingFilePath?: string,
-	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
+	) => Effect.Effect<string | undefined, TypeScriptServiceError>;
 
 	/**
 	 * Retrieves textual type signature for a symbol (method/property)
@@ -79,7 +75,7 @@ export interface TypeScriptCompilerService {
 	readonly getSymbolTypeSignature: (
 		symbol: TypeScriptSymbol,
 		location?: TypeScriptNode,
-	) => Effect.Effect<string | undefined, TypeScriptServiceError, never>;
+	) => Effect.Effect<string | undefined, TypeScriptServiceError>;
 }
 
 /**
@@ -119,7 +115,7 @@ export const makeTypeScriptCompilerService = (
 export const makeTypeScriptCompilerServiceLayer = (
 	checker: ts.TypeChecker | undefined,
 	program: ts.Program | undefined,
-): Layer.Layer<TypeScriptCompilerServiceTag, never, never> =>
+): Layer.Layer<TypeScriptCompilerServiceTag> =>
 	Layer.succeed(
 		TypeScriptCompilerServiceTag,
 		makeTypeScriptCompilerService(checker, program),

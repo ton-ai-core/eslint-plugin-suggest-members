@@ -27,7 +27,7 @@ export const createFilesystemMemberValidationEffect =
 	(
 		memberName: string,
 		objectType: string,
-	): Effect.Effect<MemberValidationResult, never, never> =>
+	): Effect.Effect<MemberValidationResult> =>
 		Effect.succeed(
 			((): MemberValidationResult => {
 				try {
